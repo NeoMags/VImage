@@ -93,7 +93,9 @@ class RamTagger:
         self.label_embed = np.load(d / "tag_embeddings.npy").astype(np.float32, copy=False)
         self.tags = (d / "ram_tag_list.txt").read_text(encoding="utf-8").splitlines()
         self.thresholds = np.loadtxt(d / "ram_tag_list_threshold.txt", dtype=np.float32)
-        if len(self.tags) != len(self.thresholds) or len(self.tags) != len(self.label_embed):
+        # RAM++ keeps several description embeddings per tag (51 x 4,585 rows); the model pools them.
+        n = len(self.tags)
+        if not n or n != len(self.thresholds) or len(self.label_embed) % n:
             raise StageError("model_invalid", "RAM++ tag list, thresholds and embeddings disagree")
         self.keep = np.array([t not in GENERIC_TAGS for t in self.tags])
 
