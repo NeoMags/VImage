@@ -1,4 +1,5 @@
 import type {
+  AssetFilter,
   AssetPatch,
   AssetQuery,
   BulkBody,
@@ -103,6 +104,15 @@ export function useAssets(query: Omit<AssetQuery, "cursor"> = {}) {
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => unwrap(api.GET("/v1/assets", { params: { query: { ...query, cursor: pageParam } } })),
     getNextPageParam: (last) => last.next_cursor ?? undefined,
+  });
+}
+
+/** How many assets each month holds, for the timeline (same filters as the list). */
+export function useAssetMonths(filter: AssetFilter) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.assets.months(filter),
+    queryFn: () => unwrap(api.GET("/v1/assets:months", { params: { query: filter } })),
   });
 }
 

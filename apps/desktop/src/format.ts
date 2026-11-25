@@ -21,3 +21,17 @@ export function ago(iso: string | null | undefined, now = Date.now()): string {
 }
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${num(n)} ${n === 1 ? one : many}`;
+
+/** 512 B, 84 KB, 3.1 MB, 1.2 GB (decimal units, like Windows Explorer's rounding but base 1000). */
+export function bytes(n: number | null | undefined): string {
+  if (n == null) return "–";
+  if (n < 1000) return `${n} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = n / 1000;
+  let i = 0;
+  while (v >= 1000 && i < units.length - 1) {
+    v /= 1000;
+    i++;
+  }
+  return `${v < 10 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
+}

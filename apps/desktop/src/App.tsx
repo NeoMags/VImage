@@ -4,6 +4,7 @@ import { NavLink, Navigate, Route, Routes } from "react-router";
 
 import { useLiveState } from "./engine";
 import { num } from "./format";
+import { Assets } from "./screens/Assets";
 import { Dashboard } from "./screens/Dashboard";
 import { Processing } from "./screens/Processing";
 import { Settings } from "./screens/Settings";
@@ -15,6 +16,7 @@ export function App() {
       <Header />
       <nav className="sidebar" aria-label="Main">
         <NavLink to="/dashboard">Dashboard</NavLink>
+        <NavLink to="/photos">All photos</NavLink>
         <NavLink to="/sources">Sources</NavLink>
         <NavLink to="/processing">
           Processing <QueueBadge />
@@ -25,6 +27,7 @@ export function App() {
         <EngineBanner />
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/photos" element={<Assets />} />
           <Route path="/sources" element={<Sources />} />
           <Route path="/processing" element={<Processing />} />
           <Route path="/settings" element={<Settings />} />

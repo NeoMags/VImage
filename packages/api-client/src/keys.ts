@@ -1,4 +1,4 @@
-import type { AssetQuery } from "@imagevault/shared-types";
+import type { AssetFilter, AssetQuery } from "@imagevault/shared-types";
 
 /** Query keys in one place, so live events and mutations refresh exactly what screens read. */
 export const keys = {
@@ -14,6 +14,7 @@ export const keys = {
   assets: {
     all: ["assets"] as const,
     list: (q: Omit<AssetQuery, "cursor">) => ["assets", q] as const,
+    months: (f: AssetFilter) => ["assets", "months", f] as const,
   },
   asset: {
     all: ["asset"] as const,

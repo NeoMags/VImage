@@ -202,3 +202,37 @@ def test_dev_origin_only_outside_the_packaged_build(tmp_path, monkeypatch):
     assert allowed_origins()[-1] == "http://localhost:1420"
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     assert "http://localhost:1420" not in allowed_origins()
+
+
+def test_dev_thumbnails_need_the_token_and_stay_inside_thumbs(tmp_path, monkeypatch):
+    import sys
+
+    from fastapi.testclient import TestClient
+
+    from ivsidecar import db
+    from ivsidecar.app import create_app
+
+    conn = db.open_library(tmp_path / "Library")
+    (tmp_path / "Library" / "thumbs" / "ab").mkdir(parents=True)
+    (tmp_path / "Library" / "thumbs" / "ab" / "1.webp").write_bytes(b"RIFFfakewebp")
+    tok = "d" * 32
+
+    # not a development run: the route does not exist
+    monkeypatch.delenv("IV_DEV_ORIGINS", raising=False)
+    plain = TestClient(create_app(conn, tok, 0.0))
+    assert plain.get("/dev/thumbs/thumbs/ab/1.webp", params={"t": tok}).status_code == 404
+
+    monkeypatch.setenv("IV_DEV_ORIGINS", "http://localhost:1420")
+    dev = TestClient(create_app(conn, tok, 0.0))
+    ok = dev.get("/dev/thumbs/thumbs/ab/1.webp", params={"t": tok})
+    assert ok.status_code == 200 and ok.content == b"RIFFfakewebp"
+    assert dev.get("/dev/thumbs/thumbs/ab/1.webp").status_code == 401
+    assert dev.get("/dev/thumbs/library.db", params={"t": tok}).status_code == 404  # outside thumbs
+    assert dev.get("/dev/thumbs/thumbs/../library.db", params={"t": tok}).status_code == 404
+    assert "/dev/thumbs/{rel_path}" not in dev.get("/v1/openapi.json").text  # not part of the contract
+
+    # the packaged exe never serves it, even with the variable set
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    frozen = TestClient(create_app(conn, tok, 0.0))
+    assert frozen.get("/dev/thumbs/thumbs/ab/1.webp", params={"t": tok}).status_code == 404
+    conn.close()

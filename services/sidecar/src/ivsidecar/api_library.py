@@ -12,7 +12,7 @@ from collections.abc import Callable
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import library as lib
@@ -35,6 +35,26 @@ class AssetPatch(_Model):
 
 class IdsBody(_Model):
     ids: Ids
+
+
+def asset_filters(
+    hidden: bool = False,
+    kind: Annotated[list[str] | None, Query()] = None,
+    status: Annotated[list[str] | None, Query()] = None,
+    mime: str | None = None,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    source: int | None = None,
+    tag: Annotated[list[int] | None, Query()] = None,
+    collection: int | None = None,
+    favorite: bool | None = None,
+    reviewed: bool | None = None,
+    availability: Literal["present", "missing", "unreachable"] | None = None,
+    min_w: int | None = Query(None, ge=1),
+    min_h: int | None = Query(None, ge=1),
+) -> dict:
+    """The asset filters shared by GET /assets and GET /assets:months."""
+    return {k: v for k, v in locals().items()}
 
 
 class BulkBody(_Model):
@@ -103,46 +123,18 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
     # ------------------------------------------------------------------ assets
     @r.get("/assets")
     def list_assets(
+        filters: Annotated[dict, Depends(asset_filters)],
         limit: int = Query(60, ge=1, le=500),
         cursor: str | None = Query(None, max_length=500),
         sort: Literal["date", "indexed", "size", "position"] = "date",
         order: Literal["asc", "desc"] = "desc",
-        hidden: bool = False,
-        kind: Annotated[list[str] | None, Query()] = None,
-        status: Annotated[list[str] | None, Query()] = None,
-        mime: str | None = None,
-        date_from: Annotated[date | None, Query(alias="from")] = None,
-        date_to: Annotated[date | None, Query(alias="to")] = None,
-        source: int | None = None,
-        tag: Annotated[list[int] | None, Query()] = None,
-        collection: int | None = None,
-        favorite: bool | None = None,
-        reviewed: bool | None = None,
-        availability: Literal["present", "missing", "unreachable"] | None = None,
-        min_w: int | None = Query(None, ge=1),
-        min_h: int | None = Query(None, ge=1),
     ) -> S.AssetPage:
-        return run(
-            lib.list_assets,
-            limit=limit,
-            cursor=cursor,
-            sort=sort,
-            order=order,
-            hidden=hidden,
-            kind=kind,
-            status=status,
-            mime=mime,
-            date_from=date_from,
-            date_to=date_to,
-            source=source,
-            tag=tag,
-            collection=collection,
-            favorite=favorite,
-            reviewed=reviewed,
-            availability=availability,
-            min_w=min_w,
-            min_h=min_h,
-        )
+        return run(lib.list_assets, limit=limit, cursor=cursor, sort=sort, order=order, **filters)
+
+    @r.get("/assets:months")
+    def asset_months(filters: Annotated[dict, Depends(asset_filters)]) -> S.AssetMonths:
+        """Assets per month of their date (newest first), with the same filters as GET /assets."""
+        return run(lib.asset_months, **filters)
 
     @r.post("/assets:bulk", response_model_exclude_none=True)
     def bulk(body: BulkBody) -> S.BulkResult:

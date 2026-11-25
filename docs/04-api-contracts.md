@@ -22,6 +22,7 @@ B8a status (2026-11-25): rows marked **Built** exist. B8b (same day): every erro
 | `GET/POST /sources` · `PATCH/DELETE /sources/{id}` | Sources CRUD; delete removes records only |
 | `POST /sources/{id}/scan` · `/pause` · `/resume` | Manual scan / pause |
 | `GET /assets` | **Built (B8a).** Filters: `kind` (repeatable), `status` (repeatable), `mime`, `from`/`to` (dates, inclusive), `source`, `tag` (repeatable, all must match), `collection`, `favorite`, `reviewed`, `availability=present|missing|unreachable`, `min_w`, `min_h`, `hidden` (default false: hidden photos are left out). `sort=date|indexed|size|position` (`position` = the user's order inside `collection`), `order=desc|asc`. `date` = date taken, else the file's modified date, else when added. Keyset pagination: `limit` ≤ 500, opaque `cursor` tied to its sort. |
+| `GET /assets:months` | **Built (B12).** Same filters as `GET /assets`; returns `{total, months: [{month: "YYYY-MM", count}]}` newest first, by the same `date` the list sorts on. The gallery uses it to size the timeline and load one month at a time (`from`/`to`). Each item of `GET /assets` also carries `file_name` (a present location's file name first). |
 | `GET /assets/{id}` | **Built.** Title and date as `{value, origin}`, source metadata, derivatives, locations (`path`, `state`, `reachable`), tags (origin, confidence, confirmed; rejected ones left out), collections, notes, previous versions, jobs, `availability` |
 | `PATCH /assets/{id}` | **Built.** `title, taken_at, is_favorite, is_reviewed`; title and date stored with origin `user`. `title: null` clears it; `taken_at: null` re-reads the date from the file. Returns the detail |
 | `POST /assets/{id}/hide` · `/unhide` | **Built.** Reversible, audited |
@@ -84,3 +85,6 @@ Built in B10 (`apps/desktop/src-tauri`):
 | Events `engine-restarted`, `engine-failed` | Tauri events | After `engine-restarted`, fetch a new endpoint (new port and token) |
 
 Engine lifecycle: crash → restart after 1 s, 2 s, 5 s; a 4th crash within 60 s gives up (`engine-failed`). Quit → `POST /v1/shutdown` (stop taking jobs, finish running ones, close the DB), kill after 5 s. Every step is logged to `<library>/logs/startup.log`. Later (D4): `set_autostart(bool)`, `tray_set_status(text)`, open with default app.
+
+### Development-only thumbnail route (B12)
+`GET /dev/thumbs/{rel_path}?t=<token>` serves files under `<library>/thumbs` so the UI can show thumbnails in a plain browser (dev server, end-to-end tests). It exists only when the engine is **not** the packaged exe **and** `IV_DEV_ORIGINS` is set, is left out of the OpenAPI contract, and refuses any path outside `thumbs`. The installed app loads thumbnails through the Tauri asset protocol instead (§4).

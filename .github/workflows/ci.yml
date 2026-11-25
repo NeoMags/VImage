@@ -70,11 +70,17 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @imagevault/desktop exec playwright install --with-deps chromium
-      - name: First run, live updates, remove folder
+      - name: First run, gallery, live updates, remove folder
         working-directory: apps/desktop
         env:
           IV_E2E_SHOTS: ${{ runner.temp }}/screens
         run: pnpm e2e --trace off
+      - name: Gallery performance, 100,000 synthetic photos (heap limit asserted; frame times recorded)
+        working-directory: apps/desktop
+        env:
+          IV_PERF: "1"
+          IV_E2E_SHOTS: ${{ runner.temp }}/screens
+        run: pnpm e2e --trace off e2e/perf
       - uses: actions/upload-artifact@v4
         if: always()
         with:

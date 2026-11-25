@@ -105,17 +105,21 @@ LIST_COLS = (
     "a.id, a.uid, a.kind, a.status, a.mime_type, a.sort_date, a.taken_at, a.indexed_at, a.byte_size, a.width, "
     "a.height, a.duration_ms, a.title, a.is_favorite, a.is_reviewed, a.is_hidden, "
     "(SELECT rel_path FROM derivatives d WHERE d.asset_id = a.id AND d.kind = 'thumb_256'), "
-    f"{AVAILABILITY_SQL}"
+    f"{AVAILABILITY_SQL}, "
+    "(SELECT l.rel_path FROM file_locations l WHERE l.asset_id = a.id ORDER BY l.state = 'present' DESC, l.id LIMIT 1)"
 )
 LIST_KEYS = (
     "id uid kind status mime_type date taken_at indexed_at byte_size width height duration_ms title "
-    "is_favorite is_reviewed is_hidden thumb_path availability"
+    "is_favorite is_reviewed is_hidden thumb_path availability file_name"
 ).split()
 BOOL_KEYS = {"is_favorite", "is_reviewed", "is_hidden"}
 
 
 def _row(keys, row) -> dict:
-    return {k: (bool(v) if k in BOOL_KEYS else v) for k, v in zip(keys, row, strict=True)}
+    out = {k: (bool(v) if k in BOOL_KEYS else v) for k, v in zip(keys, row, strict=True)}
+    if out.get("file_name"):  # a location's rel_path -> its file name (either separator)
+        out["file_name"] = re.split(r"[\\/]", out["file_name"])[-1]
+    return out
 
 
 def _encode_cursor(sort: str, order: str, value, id_: int) -> str:
@@ -134,13 +138,8 @@ def _decode_cursor(cursor: str, sort: str, order: str) -> tuple:
     return value, id_
 
 
-def list_assets(
-    conn: sqlite3.Connection,
+def _asset_filters(
     *,
-    limit: int = 60,
-    cursor: str | None = None,
-    sort: str = "date",
-    order: str = "desc",
     hidden: bool = False,
     kind: list[str] | None = None,
     status: list[str] | None = None,
@@ -155,22 +154,8 @@ def list_assets(
     availability: str | None = None,
     min_w: int | None = None,
     min_h: int | None = None,
-) -> dict:
-    if sort not in (*SORTS, "position"):
-        raise Invalid(f"sort must be one of {', '.join(SORTS)}, position")
-    if order not in ("asc", "desc"):
-        raise Invalid("order must be asc or desc")
-    if not 1 <= limit <= 500:
-        raise Invalid("limit must be 1-500")
-    if sort == "position":  # the user's order inside a collection
-        if collection is None:
-            raise Invalid("sort=position needs a collection")
-        key = (
-            f"(SELECT cp.position FROM collection_assets cp WHERE cp.collection_id = {int(collection)} "
-            "AND cp.asset_id = a.id)"
-        )
-    else:
-        key = SORTS[sort]
+) -> tuple[list[str], list]:
+    """WHERE clauses shared by the asset list and the month counts, so both always agree."""
     where, args = ["a.is_hidden = ?"], [int(hidden)]
     if kind:
         where.append(f"a.kind IN ({','.join('?' for _ in kind)})")
@@ -213,6 +198,62 @@ def list_assets(
     if min_h:
         where.append("a.height >= ?")
         args.append(min_h)
+    return where, args
+
+
+def list_assets(
+    conn: sqlite3.Connection,
+    *,
+    limit: int = 60,
+    cursor: str | None = None,
+    sort: str = "date",
+    order: str = "desc",
+    hidden: bool = False,
+    kind: list[str] | None = None,
+    status: list[str] | None = None,
+    mime: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    source: int | None = None,
+    tag: list[int] | None = None,
+    collection: int | None = None,
+    favorite: bool | None = None,
+    reviewed: bool | None = None,
+    availability: str | None = None,
+    min_w: int | None = None,
+    min_h: int | None = None,
+) -> dict:
+    if sort not in (*SORTS, "position"):
+        raise Invalid(f"sort must be one of {', '.join(SORTS)}, position")
+    if order not in ("asc", "desc"):
+        raise Invalid("order must be asc or desc")
+    if not 1 <= limit <= 500:
+        raise Invalid("limit must be 1-500")
+    if sort == "position":  # the user's order inside a collection
+        if collection is None:
+            raise Invalid("sort=position needs a collection")
+        key = (
+            f"(SELECT cp.position FROM collection_assets cp WHERE cp.collection_id = {int(collection)} "
+            "AND cp.asset_id = a.id)"
+        )
+    else:
+        key = SORTS[sort]
+    where, args = _asset_filters(
+        hidden=hidden,
+        kind=kind,
+        status=status,
+        mime=mime,
+        date_from=date_from,
+        date_to=date_to,
+        source=source,
+        tag=tag,
+        collection=collection,
+        favorite=favorite,
+        reviewed=reviewed,
+        availability=availability,
+        min_w=min_w,
+        min_h=min_h,
+    )
     if cursor:
         value, last_id = _decode_cursor(cursor, sort, order)
         where.append(f"({key}, a.id) {'<' if order == 'desc' else '>'} (?, ?)")
@@ -228,6 +269,22 @@ def list_assets(
     items = [_row(LIST_KEYS, r[:-1]) for r in rows]
     nxt = _encode_cursor(sort, order, rows[-1][-1], rows[-1][0]) if more and rows else None
     return {"items": items, "next_cursor": nxt}
+
+
+def asset_months(conn: sqlite3.Connection, **filters) -> dict:
+    """How many assets fall in each month of sort_date (newest first), for the timeline. Same filters as
+    list_assets; a null month holds assets with no date at all."""
+    where, args = _asset_filters(**filters)
+    rows = conn.execute(
+        # assets_by_date (is_hidden, sort_date, id) covers this scan; left alone, the planner picks
+        # assets_by_size and reads every row (measured: 26 ms vs 188 ms on 100k assets).
+        f"SELECT substr(a.sort_date, 1, 7) AS m, count(*) FROM assets a INDEXED BY assets_by_date "
+        f"WHERE {' AND '.join(where)} "
+        "GROUP BY m ORDER BY m IS NULL, m DESC",
+        args,
+    ).fetchall()
+    months = [{"month": m, "count": n} for m, n in rows]
+    return {"total": sum(x["count"] for x in months), "months": months}
 
 
 # --------------------------------------------------------------------------- detail
