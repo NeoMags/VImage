@@ -11,13 +11,14 @@ import time
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import __version__, probes, settings
+from . import __version__, handlers, probes, settings
+from .jobqueue import JobQueue
 
 # Origins used by Tauri 2 webviews (Windows uses http://tauri.localhost).
 TAURI_ORIGINS = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"]
 
 
-def create_app(conn: sqlite3.Connection, token: str, started_at: float) -> FastAPI:
+def create_app(conn: sqlite3.Connection, token: str, started_at: float, queue: JobQueue | None = None) -> FastAPI:
     app = FastAPI(
         title="ImageVault sidecar", version=__version__, docs_url=None, redoc_url=None, openapi_url="/v1/openapi.json"
     )
@@ -56,6 +57,33 @@ def create_app(conn: sqlite3.Connection, token: str, started_at: float) -> FastA
     @app.put("/v1/settings/resources", dependencies=[Depends(require_token)])
     def put_resources(body: settings.Resources) -> settings.Resources:
         settings.save(conn, "resources", body)
+        if queue:
+            queue.wake()
         return body
+
+    def need_queue() -> JobQueue:
+        if queue is None:
+            raise HTTPException(status_code=503, detail="job queue not running")
+        return queue
+
+    @app.get("/v1/jobs/stats", dependencies=[Depends(require_token)])
+    def job_stats() -> dict:
+        out = handlers.stats(conn)
+        out["queue"] = queue.state() if queue else None
+        return out
+
+    @app.post("/v1/jobs/pause", dependencies=[Depends(require_token)])
+    def pause_jobs() -> dict:
+        need_queue().set_paused(True)
+        return {"paused": True}
+
+    @app.post("/v1/jobs/resume", dependencies=[Depends(require_token)])
+    def resume_jobs() -> dict:
+        need_queue().set_paused(False)
+        return {"paused": False}
+
+    @app.post("/v1/jobs/retry", dependencies=[Depends(require_token)])
+    def retry_jobs() -> dict:
+        return {"requeued": need_queue().retry_failed()}
 
     return app

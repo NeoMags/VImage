@@ -16,7 +16,7 @@
 | 11 | describe | D5, optional | Ollama vision model on localhost (user installs Ollama) | `descriptions`, richer cards |
 | 12 | faces | D6, opt-in | detector + embedder (licence note Q4) | `regions`, `asset_faces` |
 
-Stage order per file: 1 → 3 (SHA-256: asset created, or matched to an existing asset = exact duplicate, no further work) → 2 → 4 (asset becomes visible). Stages 1 and 3 run before an asset exists, so their jobs reference the file location (migration 0002, B5). Then → 5 → 6/7 → 8 → 9 → 10. Each stage is a separate job so a slow OCR never blocks thumbnails.
+Stage order per file: 1 identify → 3 hash → asset created, or matched to an existing asset (exact duplicate: one more location, no further work) → 2 metadata → 4 thumbnail (asset becomes `ready`). Stages 1 and 3 run before an asset exists, so their jobs belong to the file location (`jobs.location_id`, migration 0002). Then → 5 → 6/7 → 8 → 9 → 10. Each stage is a separate job so a slow OCR never blocks thumbnails.
 
 **Interactive priority:** when you open an asset or a folder in the UI, its pending jobs get priority 10 (vs 100 bulk), so what you look at processes first.
 
@@ -34,13 +34,15 @@ Each output row stores engine + version; `pipeline_version` lets a model upgrade
 
 **ONNX Runtime instead of PyTorch/PaddlePaddle runtimes [proposed]:** much smaller install and CPU-friendly; GPU via DirectML execution provider (verify for both models; see §5). Models are downloaded on first use into `models/` and SHA-256 verified, so the installer stays small. Accuracy parity of ONNX exports vs originals must be checked in the D2/D3 spikes.
 
-## 3. Job queue (SQLite, inside the sidecar)
-- Table `jobs`; `UNIQUE (asset_id, stage, pipeline_version)` makes enqueueing idempotent (`INSERT … ON CONFLICT DO NOTHING`).
-- Claim: `UPDATE jobs SET status='running', started_at=now WHERE id = (SELECT id FROM jobs WHERE status='queued' AND run_after <= now ORDER BY priority, run_after, id LIMIT 1) RETURNING *` — one writer process, so no lock contention.
-- Workers: a process pool (CPU-heavy stages: OCR, CLIP, thumbnails) sized by the resource settings; results written back by the main process.
-- Retries: exponential backoff (`run_after`), max 5, then `dead` (visible with error + Retry button). Non-retryable errors (corrupt, unsupported) fail immediately.
-- Startup: `running` → `queued` (crash recovery).
-- Pause/resume: global and per source; "only when idle / on AC" gates claiming.
+## 3. Job queue (SQLite, inside the sidecar) — implemented in B5
+- Table `jobs`: each job belongs to an asset **or** a file location (CHECK exactly one). Partial unique indexes on `(asset_id, stage, pipeline_version)` and `(location_id, stage, pipeline_version)` make enqueueing idempotent (`INSERT … ON CONFLICT DO NOTHING`; `requeue` resets a finished job when content changes). `file_locations.asset_id` is NULL until the file is hashed.
+- Claim: `UPDATE jobs SET status='running', started_at=now WHERE id = (SELECT id FROM jobs WHERE status='queued' AND run_after <= now ORDER BY priority, run_after, id LIMIT 1) RETURNING *`.
+- Workers: `threads` slot threads in the engine, each with **one worker process** (spawned, below-normal priority) that runs one job at a time and never opens the database. One job per process pins a native crash on exactly that job. libvips cache per worker = `max_ram_mb / threads / 2` (64–1024 MB). The engine writes each result, the job status and the next job in one transaction.
+- Retries: backoff 30 s, 2 min, 10 min, 1 h; after `max_attempts` (5) → `dead`. `StageError` (corrupt, unsupported, too large) → `failed` at once. Worker process dies or exceeds 600 s → counts as a crash; 2 crashes → `failed`.
+- Startup: `running` → `queued` (crash recovery; verified by a kill -9 test on 500 files).
+- Pause/resume (persisted in `settings.queue`), "only when idle" (no input for 2 min **[proposed]**) and "only on AC" gate claiming (Windows APIs; unknown elsewhere = allowed).
+- API: `GET /v1/jobs/stats`, `POST /v1/jobs/pause|resume|retry`. Live progress over WebSocket comes with B8.
+- Packaged-build check: `ivsidecar --selftest-queue` runs one file through stages 1–4 in a spawned worker.
 
 ## 4. Failure handling
 | Event | Result |

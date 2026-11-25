@@ -19,6 +19,7 @@ import uvicorn
 
 from . import __version__, db, logs
 from .app import create_app
+from .jobqueue import JobQueue
 from .watchdog import watch_parent
 
 log = logging.getLogger("ivsidecar")
@@ -36,7 +37,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="ivsidecar")
     parser.add_argument("--library", type=Path, default=Path(os.environ.get("IV_LIBRARY_DIR") or default_library_dir()))
     parser.add_argument("--port", type=int, default=0, help="0 = pick a free port")
+    parser.add_argument("--selftest-queue", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.selftest_queue:  # CI check of the packaged build; no token or library needed
+        from .jobqueue import selftest
+
+        result = selftest()
+        print(json.dumps(result), flush=True)
+        return 0 if result["ok"] else 1
 
     token = os.environ.get("IV_TOKEN", "")
     if len(token) < 16:
@@ -58,7 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     sock.listen(128)  # accept connections before announcing readiness
     port = sock.getsockname()[1]
 
-    config = uvicorn.Config(create_app(conn, token, started), log_level="warning", access_log=False)
+    queue = JobQueue(args.library)
+    config = uvicorn.Config(create_app(conn, token, started, queue), log_level="warning", access_log=False)
     server = uvicorn.Server(config)
     print(
         json.dumps(
@@ -66,7 +75,11 @@ def main(argv: list[str] | None = None) -> int:
         ),
         flush=True,
     )
-    server.run(sockets=[sock])
+    queue.start()  # after "ready": jobs left over from last time must not delay the window
+    try:
+        server.run(sockets=[sock])
+    finally:
+        queue.stop()
     return 0
 
 
