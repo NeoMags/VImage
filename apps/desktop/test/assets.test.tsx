@@ -106,3 +106,103 @@ describe("All photos", () => {
     expect(calls.filter((r) => r.method === "POST")).toHaveLength(1);
   });
 });
+
+const detail = (id: number, over: Record<string, unknown> = {}) => ({
+  ...summary(id),
+  title: { value: null, origin: null },
+  taken_at: { value: "2026-03-10T10:00:00", origin: "source" },
+  sha256: "ab".repeat(32),
+  file_modified_at: null,
+  updated_at: "2026-03-11T10:00:00",
+  error: null,
+  metadata: {
+    camera_make: "Canon", camera_model: "EOS R6", lens: "RF 35mm", iso: 400, f_number: 1.8, exposure_s: 0.004,
+    focal_length_mm: 35, gps_lat: null, gps_lon: null, gps_alt_m: null, color_profile: "sRGB", orientation: 1,
+    extractor: "exiftool", extracted_at: "2026-03-11T10:00:00",
+  },
+  tags: [{ id: 7, name: "beach", origin: "user", confidence: null, confirmed: true }],
+  collections: [],
+  notes: [],
+  locations: [
+    { id: 1, source_id: 1, source_name: "Photos", rel_path: `IMG_${id}.JPG`, path: `D:\\Photos\\IMG_${id}.JPG`, state: "present", reachable: true, last_seen_at: null },
+  ],
+  derivatives: [{ kind: "thumb_512", rel_path: `thumbs/${id}_512.webp`, width: 512, height: 384 }],
+  versions: [],
+  jobs: [],
+  ...over,
+});
+
+describe("Photo details", () => {
+  const months = () => ({ total: 2, months: [{ month: "2026-03", count: 2 }] });
+  const list = () => ({ items: [summary(1), summary(2)], next_cursor: null });
+
+  it("opens with Enter, steps with the arrows, and closes with Esc", async () => {
+    renderWith(<Assets />, {
+      "GET /v1/assets:months": months,
+      "GET /v1/assets": list,
+      "GET /v1/assets/1": () => detail(1),
+      "GET /v1/assets/2": () => detail(2),
+      "POST /v1/assets/1/preview": () => ({ kind: "preview_1600", rel_path: "thumbs/1_1600.webp", width: 1600, height: 1200 }),
+      "POST /v1/assets/2/preview": () => problem(409, "file_unreachable", "its drive is not connected"),
+    });
+    const grid = await screen.findByRole("grid", { name: "Photos" });
+    await within(grid).findByRole("gridcell", { name: "IMG_1.jpg" });
+    fireEvent.keyDown(grid, { key: "Enter" });
+    const panel = await screen.findByRole("complementary", { name: "Photo details" });
+    expect(await within(panel).findByRole("heading", { name: "IMG_1.JPG" })).toBeTruthy();
+    expect(within(panel).getByText("Canon EOS R6")).toBeTruthy();
+    // The sharper preview replaces the small thumbnail once it is made.
+    await waitFor(() => expect(panel.querySelector(".preview-frame img")!.getAttribute("src")).toContain("1_1600.webp"));
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Next photo" }));
+    expect(await within(panel).findByRole("heading", { name: "IMG_2.JPG" })).toBeTruthy();
+    // No reachable file: keep the thumbnail and say why.
+    expect(await within(panel).findByText(/Showing the small thumbnail: .*drive is not connected/)).toBeTruthy();
+    expect(panel.querySelector(".preview-frame img")!.getAttribute("src")).toContain("2_512.webp");
+
+    fireEvent.keyDown(within(panel).getByRole("button", { name: "Next photo" }), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Photo details" })).toBeNull());
+  });
+
+  it("adds a tag and a note, and says when the photo is gone", async () => {
+    let tags = [{ id: 7, name: "beach", origin: "user", confidence: null, confirmed: true }];
+    let notes: { id: number; body: string; created_at: string; updated_at: string }[] = [];
+    const { calls } = renderWith(<Assets />, {
+      "GET /v1/assets:months": months,
+      "GET /v1/assets": list,
+      "GET /v1/assets/1": () => detail(1, { tags, notes }),
+      "GET /v1/assets/2": () => problem(404, "not_found", "no such asset"),
+      "POST /v1/assets/1/preview": () => problem(422, "decode_failed", "cannot decode"),
+      "GET /v1/tags": () => [],
+      "GET /v1/collections": () => [],
+      "POST /v1/assets/1/tags": async (req) => {
+        const { names } = (await req.json()) as { names: string[] };
+        tags = [...tags, { id: 8, name: names[0]!, origin: "user", confidence: null, confirmed: true }];
+        return { tags };
+      },
+      "POST /v1/assets/1/notes": async (req) => {
+        const { body } = (await req.json()) as { body: string };
+        notes = [{ id: 1, body, created_at: "2026-03-11T10:00:00", updated_at: "2026-03-11T10:00:00" }];
+        return notes[0];
+      },
+    });
+    const grid = await screen.findByRole("grid", { name: "Photos" });
+    fireEvent.doubleClick(await within(grid).findByRole("gridcell", { name: "IMG_1.jpg" }));
+    const panel = await screen.findByRole("complementary", { name: "Photo details" });
+    await within(panel).findByText("beach");
+
+    const tagInput = within(panel).getByRole("combobox", { name: "Add a tag" });
+    fireEvent.change(tagInput, { target: { value: " sunset " } });
+    fireEvent.submit(tagInput.closest("form")!);
+    expect(await within(panel).findByText("sunset")).toBeTruthy();
+
+    fireEvent.change(within(panel).getByRole("textbox", { name: "New note" }), { target: { value: "Grandma's 80th" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Add note" }));
+    expect(await within(panel).findByText("Grandma's 80th")).toBeTruthy();
+    const tagCall = calls.find((r) => r.method === "POST" && r.url.endsWith("/tags"))!;
+    expect(await tagCall.json()).toEqual({ names: ["sunset"] });
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Next photo" }));
+    expect(await within(panel).findByText("This photo is no longer in the library")).toBeTruthy();
+  });
+});

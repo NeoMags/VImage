@@ -430,3 +430,38 @@ def test_cursor_is_opaque_but_tamper_safe(api):
     bad = base64.urlsafe_b64encode(json.dumps(["date", "desc", "x'); DROP TABLE assets;--", "1"]).encode()).decode()
     assert client.get("/v1/assets", headers=AUTH, params={"cursor": bad}).status_code == 422
     assert conn.execute("SELECT count(*) FROM assets").fetchone()[0] == 5
+
+
+def test_preview_is_made_on_first_open_then_reused(api, tmp_path):
+    from PIL import Image
+
+    conn, client = api
+    root = tmp_path / "photos"
+    _seed(conn, 3, root=str(root))
+    (root / "dir0").mkdir(parents=True)
+    Image.new("RGB", (3200, 2400), (10, 120, 200)).save(root / "dir0" / "img000000.jpg", quality=80)
+    (root / "dir0" / "img000002.jpg").write_bytes(b"\xff\xd8\xff\xe0 not really a jpeg")
+    original = (root / "dir0" / "img000000.jpg").read_bytes()
+
+    r = client.post("/v1/assets/1/preview", headers=AUTH)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert (d["kind"], d["width"], d["height"]) == ("preview_1600", 1600, 1200)
+    lib_dir = tmp_path / "Library"
+    made = lib_dir / d["rel_path"]
+    assert made.is_file() and made.resolve().is_relative_to((lib_dir / "thumbs").resolve())
+    assert (root / "dir0" / "img000000.jpg").read_bytes() == original  # the original is only read
+    kinds = [x["kind"] for x in _get(client, "/v1/assets/1")["derivatives"]]
+    assert "preview_1600" in kinds
+
+    # second open: reused, even with the original gone
+    (root / "dir0" / "img000000.jpg").unlink()
+    mtime = made.stat().st_mtime_ns
+    assert client.post("/v1/assets/1/preview", headers=AUTH).json() == d
+    assert made.stat().st_mtime_ns == mtime
+
+    assert client.post("/v1/assets/2/preview", headers=AUTH).status_code == 409  # no file reachable
+    bad = client.post("/v1/assets/3/preview", headers=AUTH)
+    assert bad.status_code == 422, bad.text  # undecodable: the UI keeps the thumbnail
+    assert client.post("/v1/assets/999/preview", headers=AUTH).status_code == 404
+    assert client.post("/v1/assets/1/preview").status_code == 401

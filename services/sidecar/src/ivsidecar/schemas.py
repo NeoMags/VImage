@@ -138,6 +138,8 @@ class AssetVersion(Out):
 
 
 class AssetJob(Out):
+    id: int
+    """For POST /v1/jobs/{id}/retry."""
     stage: str
     status: JobStatus
     attempts: int

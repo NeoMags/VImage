@@ -92,6 +92,28 @@ export interface paths {
         patch: operations["edit_note_v1_assets__asset_id__notes__note_id__patch"];
         trace?: never;
     };
+    "/v1/assets/{asset_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Asset Preview
+         * @description The 1600 px preview, made from the original the first time a photo is opened and kept in the
+         *     library cache. Decoding runs outside the database lock. 409: no file of the photo can be
+         *     reached right now; 422: the file cannot be decoded (the UI keeps showing the thumbnail).
+         */
+        post: operations["asset_preview_v1_assets__asset_id__preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assets/{asset_id}/reveal": {
         parameters: {
             query?: never;
@@ -689,6 +711,8 @@ export interface components {
             attempts: number;
             /** Finished At */
             finished_at: string | null;
+            /** Id */
+            id: number;
             /** Last Error */
             last_error: string | null;
             /** Stage */
@@ -1710,6 +1734,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Note"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    asset_preview_v1_assets__asset_id__preview_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Derivative"];
                 };
             };
             /** @description Validation Error */

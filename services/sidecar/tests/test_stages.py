@@ -231,3 +231,29 @@ def test_unsupported_kind_raises(tmp_path):
     f.write_bytes(b"%PDF-1.4\n")
     with pytest.raises(StageError):
         make_thumbnails(f, identify(f), tmp_path / "lib", str(uuid.uuid4()))
+
+
+def test_preview_is_1600_px_never_enlarged_and_reads_only(fixture_set, exiftool, tmp_path):
+    from ivsidecar.stages.identify import identify
+    from ivsidecar.stages.thumbnails import make_preview
+
+    src, _ = fixture_set
+    big = tmp_path / "big.jpg"
+    Image.new("RGB", (4000, 3000), (200, 30, 30)).save(big, quality=80)
+    lib = tmp_path / "lib"
+    uid = str(uuid.uuid4())
+    d = make_preview(big, identify(big), lib, uid)
+    assert (d.kind, d.width, d.height) == ("preview_1600", 1600, 1200)
+    assert (lib / d.rel_path).is_file() and d.rel_path.startswith("thumbs/") and d.rel_path.endswith("_1600.webp")
+
+    small = make_preview(src / "photo.heic", identify(src / "photo.heic"), lib, str(uuid.uuid4()))
+    assert (small.width, small.height) == (640, 480)  # smaller originals stay their size
+
+    o6 = src / "orient_6.jpg"
+    rotated = make_preview(o6, identify(o6), lib, str(uuid.uuid4()))
+    assert rotated.height > rotated.width  # EXIF rotation applied
+
+    for name, code in (("truncated.jpg", "decode_failed"), ("doc.pdf", "unsupported")):
+        with pytest.raises(StageError) as e:
+            make_preview(src / name, identify(src / name), lib, str(uuid.uuid4()))
+        assert e.value.code == code

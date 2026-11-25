@@ -10,6 +10,7 @@ import sqlite3
 import threading
 from collections.abc import Callable
 from datetime import date
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -174,6 +175,37 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
     @r.post("/assets/{asset_id}/reveal")
     def reveal(asset_id: int) -> S.RevealPath:
         return run(lib.reveal_path, asset_id)
+
+    @r.post("/assets/{asset_id}/preview")
+    def asset_preview(asset_id: int) -> S.Derivative:
+        """The 1600 px preview, made from the original the first time a photo is opened and kept in the
+        library cache. Decoding runs outside the database lock. 409: no file of the photo can be
+        reached right now; 422: the file cannot be decoded (the UI keeps showing the thumbnail)."""
+        src = run(lib.preview_source, asset_id)
+        if src["existing"]:
+            return src["existing"]
+        if src["path"] is None:
+            raise HTTPException(status_code=409, detail="no file of this photo can be reached right now")
+        from .stages import StageError
+        from .stages.exiftool import ExifTool
+        from .stages.identify import identify
+        from .stages.thumbnails import make_preview
+
+        path = Path(src["path"])
+        try:
+            ident = identify(path)
+            et = ExifTool() if ident.is_raw else None
+            try:
+                d = make_preview(path, ident, src["library_dir"], src["uid"], et, src["orientation"])
+            finally:
+                if et is not None:
+                    et.close()
+        except StageError as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
+        except OSError as e:  # the file went away or is locked between the lookup and the read
+            raise HTTPException(status_code=409, detail=f"could not read the file: {e.strerror or e}") from e
+        run(lib.save_preview, asset_id, d.rel_path, d.width, d.height, d.byte_size, write=True)
+        return {"kind": d.kind, "rel_path": d.rel_path, "width": d.width, "height": d.height}
 
     @r.post("/assets/{asset_id}/tags")
     def tag_asset(asset_id: int, body: AssetTags) -> S.AssetTags:

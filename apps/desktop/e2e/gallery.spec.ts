@@ -6,6 +6,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { type Engine, makeDatedPhotos, startEngine } from "./engine";
 
 let engine: Engine;
+test.describe.configure({ mode: "serial" }); // the detail test uses the photos the gallery test added
 test.beforeAll(async () => {
   engine = await startEngine();
 });
@@ -72,5 +73,48 @@ test("gallery: months, real thumbnails, select, tag, hide and unhide", async ({ 
   await expect(page.getByRole("grid", { name: "Photos" }).getByTitle("Favourite")).toHaveCount(1);
   await shot(page, "8-gallery-list");
 
+  expect(errors).toEqual([]);
+});
+
+test("detail: sharper preview, tag, note, step and close", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto(`/?port=${engine.port}&token=${engine.token}#/photos`);
+  const grid = page.getByRole("grid", { name: "Photos" });
+  const first = grid.getByRole("gridcell").first();
+  const name = await first.getAttribute("aria-label");
+  await first.click();
+  await page.keyboard.press("Enter");
+
+  const panel = page.getByRole("complementary", { name: "Photo details" });
+  await expect(panel).toBeVisible();
+  const img = panel.locator(".preview-frame img");
+  await expect(img).toHaveAttribute("src", /_1600\.webp/, { timeout: 30_000 });
+  await expect.poll(() => img.evaluate((e) => (e as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await expect(panel.getByText("Canon")).toHaveCount(0); // synthetic photos carry no camera
+  await expect(panel.getByRole("heading", { name: "Locations" })).toBeVisible();
+
+  await panel.getByLabel("Add a tag").fill("porch");
+  await panel.getByLabel("Add a tag").press("Enter");
+  await expect(panel.getByRole("button", { name: "Remove tag porch" })).toBeVisible();
+  await panel.getByLabel("New note").fill("Check the railing height");
+  await panel.getByRole("button", { name: "Add note" }).click();
+  await expect(panel.getByText("Check the railing height")).toBeVisible();
+  await shot(page, "9-detail-panel");
+
+  await panel.getByRole("button", { name: "Full window" }).click();
+  await expect(panel).toHaveClass(/full/);
+  await shot(page, "10-detail-full");
+  await panel.getByRole("button", { name: "Next photo" }).click();
+  await expect(panel.getByText("Check the railing height")).toHaveCount(0);
+  await page.keyboard.press("ArrowLeft");
+  await expect(panel.getByText("Check the railing height")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+
+  // Saved in the engine, not just on screen.
+  await page.reload();
+  await grid.getByRole("gridcell", { name: name! }).dblclick();
+  await expect(page.getByRole("complementary", { name: "Photo details" }).getByText("Check the railing height")).toBeVisible();
   expect(errors).toEqual([]);
 });

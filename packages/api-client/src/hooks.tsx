@@ -262,3 +262,64 @@ export function useBulk() {
     onSuccess: () => refresh(qc, keys.assets.all, keys.asset.all, keys.stats, keys.tags, keys.collections),
   });
 }
+
+// ------------------------------------------------------------------------------ asset detail (B13)
+/** The 1600 px preview: made by the engine the first time a photo is opened, then reused. */
+export function useAssetPreview(id: number | null) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.asset.preview(id ?? 0),
+    queryFn: () => unwrap(api.POST("/v1/assets/{asset_id}/preview", { params: { path: { asset_id: id ?? 0 } } })),
+    enabled: id !== null,
+    staleTime: Infinity,
+    retry: false, // 409/422 mean "show the thumbnail instead", not "try again"
+  });
+}
+
+/** Edits from the detail panel: each refreshes that photo (and what else it shows). */
+export function useAssetEdits(id: number) {
+  const api = useApi();
+  const qc = useQueryClient();
+  const path = { asset_id: id };
+  const done = (...more: (readonly unknown[])[]) => () => refresh(qc, keys.asset.one(id), ...more);
+  return {
+    addTags: useMutation({
+      mutationFn: (names: string[]) => unwrap(api.POST("/v1/assets/{asset_id}/tags", { params: { path }, body: { names } })),
+      onSuccess: done(keys.tags),
+    }),
+    removeTag: useMutation({
+      mutationFn: (tagId: number) =>
+        unwrap(api.DELETE("/v1/assets/{asset_id}/tags/{tag_id}", { params: { path: { ...path, tag_id: tagId } } })),
+      onSuccess: done(keys.tags),
+    }),
+    addNote: useMutation({
+      mutationFn: (body: string) => unwrap(api.POST("/v1/assets/{asset_id}/notes", { params: { path }, body: { body } })),
+      onSuccess: done(),
+    }),
+    editNote: useMutation({
+      mutationFn: ({ noteId, body }: { noteId: number; body: string }) =>
+        unwrap(api.PATCH("/v1/assets/{asset_id}/notes/{note_id}", { params: { path: { ...path, note_id: noteId } }, body: { body } })),
+      onSuccess: done(),
+    }),
+    deleteNote: useMutation({
+      mutationFn: (noteId: number) =>
+        unwrap(api.DELETE("/v1/assets/{asset_id}/notes/{note_id}", { params: { path: { ...path, note_id: noteId } } })),
+      onSuccess: done(),
+    }),
+    addToCollection: useMutation({
+      mutationFn: (collId: number) =>
+        unwrap(api.POST("/v1/collections/{coll_id}/assets", { params: { path: { coll_id: collId } }, body: { ids: [id] } })),
+      onSuccess: done(keys.collections),
+    }),
+    removeFromCollection: useMutation({
+      mutationFn: (collId: number) =>
+        unwrap(api.DELETE("/v1/collections/{coll_id}/assets", { params: { path: { coll_id: collId } }, body: { ids: [id] } })),
+      onSuccess: done(keys.collections),
+    }),
+    setHidden: useMutation({
+      mutationFn: (hide: boolean) =>
+        unwrap(api.POST(hide ? "/v1/assets/{asset_id}/hide" : "/v1/assets/{asset_id}/unhide", { params: { path } })),
+      onSuccess: done(keys.assets.all, keys.stats),
+    }),
+  };
+}

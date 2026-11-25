@@ -27,6 +27,7 @@ from .identify import Identified
 
 MAX_PIXELS = 500_000_000  # safety limit (proposed value, doc "B4 plan")
 SIZES = ((512, "thumb_512"), (256, "thumb_256"))
+PREVIEW_SIZE, PREVIEW_KIND = 1600, "preview_1600"
 WEBP_OPTS = {"Q": 80, "strip": True}
 _RAW_PREVIEW_TAGS = ("JpgFromRaw", "PreviewImage", "OtherImage", "ThumbnailImage")
 
@@ -123,6 +124,45 @@ def _write_atomic(img: pyvips.Image, dest: Path) -> int:
     return dest.stat().st_size
 
 
+def _decode(
+    path: Path,
+    ident: Identified,
+    size: int,
+    exiftool: ExifTool | None,
+    orientation: int | None,
+    max_pixels: int,
+) -> tuple[pyvips.Image, int, int]:
+    """The image shrunk to fit `size` (never enlarged), plus the original size after orientation."""
+    if ident.is_raw:
+        if exiftool is None:
+            raise StageError("no_exiftool", "ExifTool is needed for camera RAW previews")
+        base, w, h = _load_raw_preview(path, exiftool, orientation)
+        big = base.thumbnail_image(size, height=size, size="down")
+    elif ident.mime in ("image/heic", "image/avif", "image/bmp"):
+        base, w, h = _load_pil(path, max_pixels)
+        big = base.thumbnail_image(size, height=size, size="down")
+    else:
+        try:
+            header = pyvips.Image.new_from_file(str(path), access="sequential")
+            hw, hh = header.width, header.height
+            _check_pixels(hw, hh, max_pixels)
+            big = pyvips.Image.thumbnail(str(path), size, height=size, size="down", fail_on="error")
+            # Orientation-corrected original size: swap when the thumbnail was rotated.
+            swapped = (big.width > big.height) != (hw > hh) and hw != hh
+            w, h = (hh, hw) if swapped else (hw, hh)
+        except StageError:
+            raise
+        except pyvips.Error as e:
+            msg = str(e).splitlines()[0] if str(e) else "libvips error"
+            if "is not a known file format" in str(e):
+                base, w, h = _load_pil(path, max_pixels)
+                big = base.thumbnail_image(size, height=size, size="down")
+            else:
+                raise StageError("decode_failed", msg[:300]) from e
+
+    return big, w, h
+
+
 def make_thumbnails(
     path: Path,
     ident: Identified,
@@ -138,32 +178,7 @@ def make_thumbnails(
     if not ident.supported or ident.kind != "image":
         raise StageError("unsupported", f"no thumbnail for {ident.mime}")
 
-    if ident.is_raw:
-        if exiftool is None:
-            raise StageError("no_exiftool", "ExifTool is needed for camera RAW previews")
-        base, w, h = _load_raw_preview(path, exiftool, orientation)
-        big = base.thumbnail_image(SIZES[0][0], height=SIZES[0][0], size="down")
-    elif ident.mime in ("image/heic", "image/avif", "image/bmp"):
-        base, w, h = _load_pil(path, max_pixels)
-        big = base.thumbnail_image(SIZES[0][0], height=SIZES[0][0], size="down")
-    else:
-        try:
-            header = pyvips.Image.new_from_file(str(path), access="sequential")
-            hw, hh = header.width, header.height
-            _check_pixels(hw, hh, max_pixels)
-            big = pyvips.Image.thumbnail(str(path), SIZES[0][0], height=SIZES[0][0], size="down", fail_on="error")
-            # Orientation-corrected original size: swap when the thumbnail was rotated.
-            swapped = (big.width > big.height) != (hw > hh) and hw != hh
-            w, h = (hh, hw) if swapped else (hw, hh)
-        except StageError:
-            raise
-        except pyvips.Error as e:
-            msg = str(e).splitlines()[0] if str(e) else "libvips error"
-            if "is not a known file format" in str(e):
-                base, w, h = _load_pil(path, max_pixels)
-                big = base.thumbnail_image(SIZES[0][0], height=SIZES[0][0], size="down")
-            else:
-                raise StageError("decode_failed", msg[:300]) from e
+    big, w, h = _decode(path, ident, SIZES[0][0], exiftool, orientation, max_pixels)
 
     try:
         # Render once into memory: the source is read sequentially, and both the hash and
@@ -184,4 +199,29 @@ def make_thumbnails(
     return result
 
 
-__all__ = ["make_thumbnails", "ThumbResult", "Derivative", "shard_dir", "MAX_PIXELS"]
+def make_preview(
+    path: Path,
+    ident: Identified,
+    library_dir: Path,
+    uid: str,
+    exiftool: ExifTool | None = None,
+    orientation: int | None = None,
+    max_pixels: int = MAX_PIXELS,
+) -> Derivative:
+    """The 1600 px preview for the detail view, made on first open (decision B12–B13 #1), next to the
+    thumbnails. Reads the original only. Raises StageError when it cannot be decoded."""
+    if not ident.supported or ident.kind != "image":
+        raise StageError("unsupported", f"no preview for {ident.mime}")
+    if ident.is_raw and exiftool is None:
+        raise StageError("no_exiftool", "ExifTool is needed for camera RAW previews")
+    big, _, _ = _decode(path, ident, PREVIEW_SIZE, exiftool, orientation, max_pixels)
+    try:
+        img = _to_srgb8(big)
+        dest = library_dir / shard_dir(uid) / f"{uid.replace('-', '')}_{PREVIEW_SIZE}.webp"
+        n = _write_atomic(img, dest)
+        return Derivative(PREVIEW_KIND, dest.relative_to(library_dir).as_posix(), img.width, img.height, n)
+    except pyvips.Error as e:
+        raise StageError("decode_failed", (str(e).splitlines() or ["libvips error"])[0][:300]) from e
+
+
+__all__ = ["make_thumbnails", "make_preview", "ThumbResult", "Derivative", "shard_dir", "MAX_PIXELS"]
