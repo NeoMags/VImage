@@ -1,0 +1,18 @@
+{
+  "name": "@imagevault/shared-types",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "cd ../../services/sidecar && uv run python -m ivsidecar.openapi ../../packages/shared-types && cd ../../packages/shared-types && pnpm generate:ts",
+    "generate:ts": "openapi-typescript openapi.json -o src/api.ts",
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

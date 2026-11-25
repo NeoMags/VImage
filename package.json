@@ -3,5 +3,9 @@
   "private": true,
   "packageManager": "pnpm@10.28.0",
   "engines": { "node": ">=22" },
-  "scripts": {}
+  "scripts": {
+    "generate": "pnpm --filter @imagevault/shared-types generate",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
 }

@@ -31,6 +31,26 @@ jobs:
           IV_REQUIRE_EXIFTOOL: "1"
         run: uv run pytest -q
 
+  ui-packages:
+    name: UI packages (types, client, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generated types match the committed contract
+        # openapi.json itself is checked against the sidecar by tests/test_contract.py (python job)
+        run: |
+          pnpm --filter @imagevault/shared-types generate:ts
+          git diff --exit-code -- packages/shared-types || (echo "::error::src/api.ts is stale: run pnpm generate" && exit 1)
+      - run: pnpm typecheck
+      - run: pnpm test
+
   rust:
     name: Desktop shell check (Linux)
     runs-on: ubuntu-latest

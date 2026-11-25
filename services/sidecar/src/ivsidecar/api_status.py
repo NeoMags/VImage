@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import db, handlers
+from . import schemas as S
 from .events import bus
 from .jobqueue import JobQueue
 
@@ -96,7 +97,7 @@ def build_router(
         stage: str | None = Query(None, max_length=20),
         limit: int = Query(100, ge=1, le=500),
         before_id: int | None = Query(None, ge=1, description="paging: the last id of the previous page"),
-    ) -> dict:
+    ) -> S.JobPage:
         where, args = [], []
         if status:
             where.append("j.status = ?")
@@ -122,7 +123,7 @@ def build_router(
         return {"items": items, "next_before_id": items[-1]["id"] if len(rows) > limit else None}
 
     @r.post("/jobs/{job_id}/retry")
-    def retry_job(job_id: int) -> dict:
+    def retry_job(job_id: int) -> S.JobRetried:
         with lock:
             row = conn.execute("SELECT status, asset_id FROM jobs WHERE id = ?", (job_id,)).fetchone()
             if row is None:
@@ -155,7 +156,7 @@ def build_router(
         return {"id": job_id, "status": "queued"}
 
     @r.get("/stats")
-    def stats() -> dict:
+    def stats() -> S.LibraryStats:
         with lock:
             return library_stats(conn, queue)
 
@@ -174,7 +175,7 @@ def build_router(
         await sock.accept(subprotocol="ivsidecar")
         sid, q = bus.subscribe(asyncio.get_running_loop())
         try:
-            await sock.send_json({"type": "hello", "flush_ms": int(bus.flush_s * 1000)})
+            await sock.send_json(bus.hello())
             receiver = asyncio.create_task(sock.receive_text())  # notices the window closing
             while True:
                 getter = asyncio.create_task(q.get())

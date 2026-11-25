@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import library as lib
+from . import schemas as S
 from .events import bus
 
 Ids = Annotated[list[int], Field(min_length=1, max_length=lib.MAX_BULK)]
@@ -120,7 +121,7 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
         availability: Literal["present", "missing", "unreachable"] | None = None,
         min_w: int | None = Query(None, ge=1),
         min_h: int | None = Query(None, ge=1),
-    ) -> dict:
+    ) -> S.AssetPage:
         return run(
             lib.list_assets,
             limit=limit,
@@ -143,8 +144,8 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
             min_h=min_h,
         )
 
-    @r.post("/assets:bulk")
-    def bulk(body: BulkBody) -> dict:
+    @r.post("/assets:bulk", response_model_exclude_none=True)
+    def bulk(body: BulkBody) -> S.BulkResult:
         out = run(lib.bulk, body.ids, body.model_dump(exclude={"ids"}, exclude_none=True), write=True)
         bus.asset_updated(*body.ids)
         if body.add_tags:
@@ -154,11 +155,11 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
         return out
 
     @r.get("/assets/{asset_id}")
-    def detail(asset_id: int) -> dict:
+    def detail(asset_id: int) -> S.AssetDetail:
         return run(lib.asset_detail, asset_id)
 
     @r.patch("/assets/{asset_id}")
-    def patch(asset_id: int, body: AssetPatch) -> dict:
+    def patch(asset_id: int, body: AssetPatch) -> S.AssetDetail:
         changes = {k: getattr(body, k) for k in body.model_fields_set}
         if any(changes.get(f) is None for f in ("is_favorite", "is_reviewed") if f in changes):
             raise HTTPException(status_code=422, detail="is_favorite and is_reviewed must be true or false")
@@ -167,23 +168,23 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
         return run(lib.asset_detail, asset_id)
 
     @r.post("/assets/{asset_id}/hide")
-    def hide(asset_id: int) -> dict:
+    def hide(asset_id: int) -> S.Hidden:
         run(lib.set_hidden, [asset_id], True, write=True)
         bus.asset_updated(asset_id)
         return {"id": asset_id, "is_hidden": True}
 
     @r.post("/assets/{asset_id}/unhide")
-    def unhide(asset_id: int) -> dict:
+    def unhide(asset_id: int) -> S.Hidden:
         run(lib.set_hidden, [asset_id], False, write=True)
         bus.asset_updated(asset_id)
         return {"id": asset_id, "is_hidden": False}
 
     @r.post("/assets/{asset_id}/reveal")
-    def reveal(asset_id: int) -> dict:
+    def reveal(asset_id: int) -> S.RevealPath:
         return run(lib.reveal_path, asset_id)
 
     @r.post("/assets/{asset_id}/tags")
-    def tag_asset(asset_id: int, body: AssetTags) -> dict:
+    def tag_asset(asset_id: int, body: AssetTags) -> S.AssetTags:
         def go(c):
             lib._exists(c, "assets", asset_id, "photo")
             lib.add_tags(c, [asset_id], lib.get_or_create_tags(c, body.names))
@@ -209,7 +210,7 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
 
     # ------------------------------------------------------------------ notes
     @r.get("/assets/{asset_id}/notes")
-    def notes(asset_id: int) -> list[dict]:
+    def notes(asset_id: int) -> list[S.Note]:
         def go(c):
             lib._exists(c, "assets", asset_id, "photo")
             return lib.list_notes(c, asset_id)
@@ -217,11 +218,11 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
         return run(go)
 
     @r.post("/assets/{asset_id}/notes", status_code=201)
-    def add_note(asset_id: int, body: NoteBody) -> dict:
+    def add_note(asset_id: int, body: NoteBody) -> S.Note:
         return run(lib.create_note, asset_id, body.body, write=True, notify_asset=asset_id)
 
     @r.patch("/assets/{asset_id}/notes/{note_id}")
-    def edit_note(asset_id: int, note_id: int, body: NoteBody) -> list[dict]:
+    def edit_note(asset_id: int, note_id: int, body: NoteBody) -> list[S.Note]:
         run(lib.update_note, asset_id, note_id, body.body, write=True, notify_asset=asset_id)
         return run(lib.list_notes, asset_id)
 
@@ -232,36 +233,36 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
 
     # ------------------------------------------------------------------ tags
     @r.get("/tags")
-    def tags(q: str | None = Query(None, max_length=100)) -> list[dict]:
+    def tags(q: str | None = Query(None, max_length=100)) -> list[S.Tag]:
         return run(lib.list_tags, q)
 
     @r.post("/tags", status_code=201)
-    def new_tag(body: TagBody) -> dict:
+    def new_tag(body: TagBody) -> S.Tag:
         return run(lib.create_tag, body.name, write=True, notify="tags")
 
     @r.patch("/tags/{tag_id}")
-    def rename_tag(tag_id: int, body: TagBody) -> dict:
+    def rename_tag(tag_id: int, body: TagBody) -> S.RenamedTag:
         return run(lib.rename_tag, tag_id, body.name, write=True, notify="tags")
 
     @r.delete("/tags/{tag_id}")
-    def delete_tag(tag_id: int) -> dict:
+    def delete_tag(tag_id: int) -> S.TagDeleted:
         return {"photos_untagged": run(lib.delete_tag, tag_id, write=True, notify="tags")}
 
     @r.post("/tags/{tag_id}/merge")
-    def merge_tag(tag_id: int, body: TagMerge) -> dict:
+    def merge_tag(tag_id: int, body: TagMerge) -> S.TagMerged:
         return {"photos_moved": run(lib.merge_tags, tag_id, body.into, write=True, notify="tags")}
 
     # ------------------------------------------------------------------ collections
     @r.get("/collections")
-    def collections() -> list[dict]:
+    def collections() -> list[S.Collection]:
         return run(lib.list_collections)
 
     @r.post("/collections", status_code=201)
-    def new_collection(body: CollectionBody) -> dict:
+    def new_collection(body: CollectionBody) -> S.NewCollection:
         return run(lib.create_collection, body.name, body.parent_id, write=True, notify="collections")
 
     @r.patch("/collections/{coll_id}")
-    def edit_collection(coll_id: int, body: CollectionPatch) -> dict:
+    def edit_collection(coll_id: int, body: CollectionPatch) -> S.Collection:
         changes = {k: getattr(body, k) for k in body.model_fields_set}
         if "name" in changes and changes["name"] is None:
             raise HTTPException(status_code=422, detail="name cannot be empty")
@@ -274,7 +275,7 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
         return Response(status_code=204)
 
     @r.post("/collections/{coll_id}/assets")
-    def collect(coll_id: int, body: IdsBody) -> dict:
+    def collect(coll_id: int, body: IdsBody) -> S.Added:
         def go(c):
             lib._check_assets(c, body.ids)
             return lib.add_to_collection(c, coll_id, list(dict.fromkeys(body.ids)))  # keeps the given order
@@ -282,7 +283,7 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
         return {"added": run(go, write=True, notify="collections")}
 
     @r.delete("/collections/{coll_id}/assets")
-    def uncollect(coll_id: int, body: IdsBody) -> dict:
+    def uncollect(coll_id: int, body: IdsBody) -> S.Removed:
         return {"removed": run(lib.remove_from_collection, coll_id, body.ids, write=True, notify="collections")}
 
     @r.put("/collections/{coll_id}/assets/{asset_id}/position", status_code=204)
