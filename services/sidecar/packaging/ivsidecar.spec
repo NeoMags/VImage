@@ -20,8 +20,12 @@ for path in glob.glob(os.path.join(site, "pyvips_binary.libs", "*")):
     binaries.append((path, "pyvips_binary.libs"))
 for path in glob.glob(os.path.join(site, "_libvips*")):
     binaries.append((path, "."))
+# pillow-heif wheels vendor libheif/libde265/x265 the same way (pillow_heif.libs on Linux,
+# delvewheel-style pillow_heif.libs on Windows).
+for path in glob.glob(os.path.join(site, "pillow_heif.libs", "*")):
+    binaries.append((path, "pillow_heif.libs"))
 
-for pkg in ("sqlite_vec", "pyvips"):
+for pkg in ("sqlite_vec", "pyvips", "pillow_heif"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

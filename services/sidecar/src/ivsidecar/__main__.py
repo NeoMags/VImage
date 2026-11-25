@@ -41,7 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     parent = os.environ.get("IV_PARENT_PID")
     if parent and parent.isdigit():
         watch_parent(int(parent))
+    t_db = time.time()
     conn = db.open_library(args.library)
+    db_ms = round((time.time() - t_db) * 1000)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(("127.0.0.1", args.port))
@@ -50,7 +52,12 @@ def main(argv: list[str] | None = None) -> int:
 
     config = uvicorn.Config(create_app(conn, token, started), log_level="warning", access_log=False)
     server = uvicorn.Server(config)
-    print(json.dumps({"event": "ready", "port": port, "startup_ms": round((time.time() - started) * 1000)}), flush=True)
+    print(
+        json.dumps(
+            {"event": "ready", "port": port, "startup_ms": round((time.time() - started) * 1000), "db_ms": db_ms}
+        ),
+        flush=True,
+    )
     server.run(sockets=[sock])
     return 0
 

@@ -73,6 +73,7 @@ jobs:
           if (-not $health.vips.ok -or -not $health.vips.thumbnail_selftest.ok) { throw "libvips not working in packaged build" }
           if ($health.db.schema_version -lt 1) { throw "migration not applied" }
           if (-not $health.exiftool.ok) { throw "ExifTool not working in packaged build" }
+          if (-not $health.heif.ok) { throw "HEIC decoding (pillow-heif) not working in packaged build" }
 
       - uses: actions/setup-node@v4
         with:
@@ -102,6 +103,8 @@ jobs:
           Start-Sleep -Seconds 3
           $side = Get-Process ivsidecar -ErrorAction SilentlyContinue
           "| App launch to library.db created | $libMs ms |`n| Sidecar processes while app runs | $(@($side).Count) |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          $timeline = Join-Path $env:LOCALAPPDATA "com.neomags.imagevault/logs/startup.log"
+          if (Test-Path $timeline) { "Startup timeline:"; Get-Content $timeline } else { "no startup.log at $timeline" }
           if (-not (Test-Path $lib)) { throw "installed app did not start the sidecar (no library.db)" }
           Stop-Process -Id $proc.Id -Force
           Start-Sleep -Seconds 5

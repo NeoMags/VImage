@@ -4,7 +4,8 @@
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Instant;
 
 use serde::Serialize;
 use tauri::{Manager, RunEvent};
@@ -13,6 +14,31 @@ use tauri::{Manager, RunEvent};
 struct Endpoint {
     port: u16,
     token: String,
+}
+
+/// Process start time; every startup log line is relative to it.
+static T0: OnceLock<Instant> = OnceLock::new();
+
+/// Startup timeline, written to `<app log dir>/startup.log` once the sidecar is ready (or failed),
+/// so slow launches can be diagnosed on a user's PC without a debugger.
+static TIMELINE: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+fn mark(step: &str) {
+    let ms = T0.get().map(|t| t.elapsed().as_millis()).unwrap_or(0);
+    TIMELINE.lock().unwrap().push(format!("{ms:>6} ms  {step}"));
+}
+
+/// Set in the setup hook; until then the timeline stays in memory.
+static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+fn write_timeline() {
+    let Some(dir) = LOG_DIR.get() else {
+        return;
+    };
+    let lines = TIMELINE.lock().unwrap().join("\n");
+    if std::fs::create_dir_all(dir).is_ok() {
+        let _ = std::fs::write(dir.join("startup.log"), lines + "\n");
+    }
 }
 
 #[derive(Default)]
@@ -28,25 +54,24 @@ fn random_token() -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn sidecar_path(app: &tauri::AppHandle) -> PathBuf {
+fn sidecar_path(package_info: &tauri::PackageInfo) -> Result<PathBuf, String> {
     // Bundled build: <resources>/sidecar/ivsidecar(.exe). Dev override: IV_SIDECAR_PATH.
     if let Ok(p) = std::env::var("IV_SIDECAR_PATH") {
-        return PathBuf::from(p);
+        return Ok(PathBuf::from(p));
     }
     let exe = if cfg!(windows) {
         "ivsidecar.exe"
     } else {
         "ivsidecar"
     };
-    app.path()
-        .resource_dir()
-        .expect("resource dir")
-        .join("sidecar")
-        .join(exe)
+    // Resolved without an AppHandle so the sidecar can start before the window and webview exist.
+    tauri::utils::platform::resource_dir(package_info, &tauri::Env::default())
+        .map(|dir| dir.join("sidecar").join(exe))
+        .map_err(|e| format!("resource dir unavailable: {e}"))
 }
 
-fn start_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
-    let path = sidecar_path(app);
+fn start_sidecar(package_info: &tauri::PackageInfo, state: Arc<Sidecar>) -> Result<(), String> {
+    let path = sidecar_path(package_info)?;
     let token = random_token();
     let mut cmd = Command::new(&path);
     cmd.env("IV_TOKEN", &token)
@@ -60,22 +85,25 @@ fn start_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
+    mark("sidecar spawn requested");
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("could not start {}: {e}", path.display()))?;
+    mark("sidecar process created");
     let stdout = child.stdout.take().ok_or("sidecar stdout unavailable")?;
-    let state = app.state::<Sidecar>();
     *state.child.lock().unwrap() = Some(child);
 
     // Read the one-line readiness message on a background thread.
-    let handle = app.clone();
     std::thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
         let mut line = String::new();
-        let state = handle.state::<Sidecar>();
         match reader.read_line(&mut line) {
             Ok(n) if n > 0 => match serde_json::from_str::<serde_json::Value>(&line) {
                 Ok(v) if v["event"] == "ready" => {
+                    mark(&format!(
+                        "sidecar ready (sidecar reports {} ms after its own start, db open {} ms)",
+                        v["startup_ms"], v["db_ms"]
+                    ));
                     let port = v["port"].as_u64().unwrap_or(0) as u16;
                     *state.endpoint.lock().unwrap() = Some(Endpoint { port, token });
                 }
@@ -84,6 +112,10 @@ fn start_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
             },
             _ => *state.error.lock().unwrap() = Some("sidecar exited before ready".into()),
         }
+        if let Some(err) = state.error.lock().unwrap().clone() {
+            mark(&format!("sidecar failed: {err}"));
+        }
+        write_timeline();
         // Keep draining stdout so the sidecar never blocks on a full pipe.
         let mut sink = String::new();
         while reader.read_line(&mut sink).map(|n| n > 0).unwrap_or(false) {
@@ -94,7 +126,7 @@ fn start_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_sidecar_endpoint(state: tauri::State<Sidecar>) -> Result<Endpoint, String> {
+fn get_sidecar_endpoint(state: tauri::State<Arc<Sidecar>>) -> Result<Endpoint, String> {
     if let Some(err) = state.error.lock().unwrap().clone() {
         return Err(err);
     }
@@ -107,23 +139,41 @@ fn get_sidecar_endpoint(state: tauri::State<Sidecar>) -> Result<Endpoint, String
 }
 
 pub fn run() {
+    T0.get_or_init(Instant::now);
+    mark("app process started");
+    let context = tauri::generate_context!();
+    // Start the engine first: creating the window and webview can take seconds on a cold start
+    // (2.8 s measured on Linux/Xvfb), and the engine's own startup runs in parallel with it.
+    let sidecar = Arc::new(Sidecar::default());
+    if let Err(e) = start_sidecar(context.package_info(), sidecar.clone()) {
+        mark(&format!("sidecar failed: {e}"));
+        *sidecar.error.lock().unwrap() = Some(e);
+    }
     tauri::Builder::default()
-        .manage(Sidecar::default())
+        .manage(sidecar)
         .invoke_handler(tauri::generate_handler![get_sidecar_endpoint])
+        .on_page_load(|_, payload| {
+            mark(&format!("page load {:?}", payload.event()));
+            write_timeline();
+        })
         .setup(|app| {
-            if let Err(e) = start_sidecar(app.handle()) {
-                *app.state::<Sidecar>().error.lock().unwrap() = Some(e);
+            mark("setup hook");
+            if let Ok(dir) = app.path().app_log_dir() {
+                let _ = LOG_DIR.set(dir);
             }
+            write_timeline();
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building ImageVault")
-        .run(|app, event| {
-            if let RunEvent::Exit = event {
-                if let Some(mut child) = app.state::<Sidecar>().child.lock().unwrap().take() {
+        .run(|app, event| match event {
+            RunEvent::Ready => mark("event loop ready"),
+            RunEvent::Exit => {
+                if let Some(mut child) = app.state::<Arc<Sidecar>>().child.lock().unwrap().take() {
                     let _ = child.kill();
                     let _ = child.wait();
                 }
             }
+            _ => {}
         });
 }

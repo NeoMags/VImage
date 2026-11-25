@@ -52,6 +52,36 @@ def vips_info() -> dict:
     return info
 
 
+def heif_info() -> dict:
+    """HEIC/HEIF decoding through pillow-heif (libheif + libde265).
+
+    libvips' bundled HEIF support cannot handle HEVC (iPhone photos), so HEIC goes through
+    pillow-heif. Self-test: encode a 64x48 image to HEIC in memory, decode it with Pillow.
+    """
+    try:
+        import io
+
+        import pillow_heif
+        from PIL import Image
+
+        pillow_heif.register_heif_opener()
+        t = time.perf_counter()
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 48), (200, 30, 30)).save(buf, format="HEIF", quality=80)
+        buf.seek(0)
+        with Image.open(buf) as im:
+            im.load()
+            ok = im.size == (64, 48) and im.format == "HEIF"
+        return {
+            "ok": ok,
+            "pillow_heif": pillow_heif.__version__,
+            "libheif": pillow_heif.libheif_info().get("libheif"),
+            "hevc_roundtrip_ms": round((time.perf_counter() - t) * 1000, 1),
+        }
+    except Exception as e:  # report, never crash the health endpoint
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
 def find_exiftool() -> str | None:
     env = os.environ.get("IV_EXIFTOOL")
     if env and Path(env).is_file():

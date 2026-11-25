@@ -44,6 +44,7 @@ def create_app(conn: sqlite3.Connection, token: str, started_at: float) -> FastA
             "frozen": bool(getattr(sys, "frozen", False)),
             "db": probes.sqlite_info(conn),
             "vips": probes.vips_info(),
+            "heif": probes.heif_info(),
             "exiftool": probes.exiftool_info(),
         }
 
