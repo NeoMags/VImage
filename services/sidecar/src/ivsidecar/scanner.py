@@ -30,7 +30,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import db, handlers
+from . import db, events, handlers
 
 log = logging.getLogger("ivsidecar.scanner")
 
@@ -198,6 +198,19 @@ class Scan:
         self.token = _order_key(token) if token is not None else None
         self.counts = ScanCounts()
 
+    def _progress(self, status: str, kind: str) -> None:
+        c = self.counts
+        events.bus.scan_progress(
+            self.source_id,
+            run_id=self.run_id,
+            kind=kind,
+            status=status,
+            files_seen=c.seen,
+            files_new=c.new,
+            files_changed=c.changed,
+            files_missing=c.missing,
+        )
+
     # -- identity
     def _file_key(self, entry: os.DirEntry, rel: str) -> str:
         if self.vol.use_file_ids:
@@ -242,6 +255,7 @@ class Scan:
                 )
                 if self.on_batch and (self._batch_new or self._batch_changed):
                     self.on_batch()
+                self._progress("running", "full")
         self._mark_missing()
         self._finish("succeeded")
         return "succeeded"
@@ -298,6 +312,7 @@ class Scan:
             (self.counts.seen, self.counts.new, self.counts.changed, self.counts.missing, self.run_id),
         )
         self._finish("succeeded" if not self.shutdown.is_set() else "cancelled", update_source=False)
+        self._progress("succeeded" if not self.shutdown.is_set() else "cancelled", "watch_batch")
         if self.on_batch and (self.counts.new or self.counts.changed):
             self.on_batch()
         return deferred
@@ -439,6 +454,8 @@ class Scan:
         self.conn.execute("UPDATE scan_runs SET files_missing = ? WHERE id = ?", (n, self.run_id))
 
     def _finish(self, status: str, error: str | None = None, update_source: bool = True) -> None:
+        if update_source:  # a full scan (watch batches report their own progress)
+            self._progress(status, "full")
         self.conn.execute(
             f"UPDATE scan_runs SET status = ?, last_error = ?, finished_at = {NOW} WHERE id = ?",
             (status, error, self.run_id),
@@ -551,6 +568,8 @@ class Scanner:
                         (source_id,),
                     )
                     conn.execute("COMMIT")
+                    events.bus.source_status(source_id, "unreachable")
+                    events.bus.asset_updated_all()
                 return "unreachable"
             if status == "unreachable" or found != root_path:
                 log.info("source %d reachable again at %s", source_id, found)
@@ -564,6 +583,8 @@ class Scanner:
                     (source_id,),
                 )
                 conn.execute("COMMIT")
+                events.bus.source_status(source_id, "active")
+                events.bus.asset_updated_all()
             return "active"
         finally:
             conn.close()
@@ -728,4 +749,6 @@ def remove_source(conn: sqlite3.Connection, source_id: int, library_dir: Path, c
             except OSError as e:
                 log.warning("could not delete thumbnail %s: %s", p, e)
     log.info("removed source %d: %d photos deleted from the library", source_id, len(ids))
+    events.bus.source_status(source_id, "removed")
+    events.bus.asset_updated_all()
     return {"removed": source_id, "assets_deleted": len(ids), "thumbnails_deleted": removed_files}

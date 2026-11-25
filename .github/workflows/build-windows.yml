@@ -73,7 +73,15 @@ jobs:
           $ready = $p.StandardOutput.ReadLine() | ConvertFrom-Json
           $coldMs = $sw.ElapsedMilliseconds
           $health = Invoke-RestMethod -Uri "http://127.0.0.1:$($ready.port)/v1/health" -Headers @{ Authorization = "Bearer $env:IV_TOKEN" }
+          # Live events: the WebSocket must work in the frozen build (uvicorn loads its WS layer dynamically)
+          $ws = New-Object System.Net.WebSockets.ClientWebSocket
+          $ws.Options.AddSubProtocol("ivsidecar"); $ws.Options.AddSubProtocol("bearer.$env:IV_TOKEN")
+          $ws.ConnectAsync([Uri]"ws://127.0.0.1:$($ready.port)/v1/events", [Threading.CancellationToken]::None).Wait(10000) | Out-Null
+          $buf = New-Object byte[] 4096
+          $rcv = $ws.ReceiveAsync([ArraySegment[byte]]::new($buf), [Threading.CancellationToken]::None)
+          $wsOk = $rcv.Wait(10000) -and ([Text.Encoding]::UTF8.GetString($buf, 0, $rcv.Result.Count) -match '"hello"')
           $p.Kill()
+          if (-not $wsOk) { throw "WebSocket /v1/events not working in packaged build (state $($ws.State))" }
           $health | ConvertTo-Json -Depth 6 | Tee-Object -FilePath health.json
           $size = "{0:N1}" -f ((Get-ChildItem dist/ivsidecar -Recurse | Measure-Object Length -Sum).Sum / 1MB)
           "| Sidecar folder size | $size MB |`n| Process start to ready (cold) | $coldMs ms |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
