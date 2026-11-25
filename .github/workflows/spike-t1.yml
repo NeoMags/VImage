@@ -1,0 +1,37 @@
+name: Spike T1 tagging models
+on:
+  push:
+    branches: [spike/t1-tagging]
+    paths: [services/sidecar/spikes/t1/**, .github/workflows/spike-t1.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  t1:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: services/sidecar/spikes/t1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            services/sidecar/spikes/t1/models
+            services/sidecar/spikes/t1/coco
+          key: t1-inputs-v1
+      - run: pip install "onnxruntime>=1.22" numpy pillow tokenizers
+      - run: python fetch.py models coco 500
+      - run: python t1_tagging.py --models models --coco coco --n 500 --out report-${{ runner.os }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: t1-report-${{ runner.os }}
+          path: services/sidecar/spikes/t1/report-*.json
