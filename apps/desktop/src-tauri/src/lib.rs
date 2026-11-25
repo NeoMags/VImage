@@ -28,8 +28,20 @@ fn mark(step: &str) {
     TIMELINE.lock().unwrap().push(format!("{ms:>6} ms  {step}"));
 }
 
-/// Set in the setup hook; until then the timeline stays in memory.
+/// `<library dir>/logs`, same default as the sidecar (`IV_LIBRARY_DIR`, else
+/// `%LOCALAPPDATA%\\ImageVault`). Known before Tauri starts, so the timeline is written
+/// even if window or webview creation stalls.
 static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+fn library_log_dir() -> Option<PathBuf> {
+    let lib = std::env::var_os("IV_LIBRARY_DIR")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("ImageVault")))
+        .or_else(|| {
+            std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share/ImageVault"))
+        })?;
+    Some(lib.join("logs"))
+}
 
 fn write_timeline() {
     let Some(dir) = LOG_DIR.get() else {
@@ -141,6 +153,9 @@ fn get_sidecar_endpoint(state: tauri::State<Arc<Sidecar>>) -> Result<Endpoint, S
 pub fn run() {
     T0.get_or_init(Instant::now);
     mark("app process started");
+    if let Some(dir) = library_log_dir() {
+        let _ = LOG_DIR.set(dir);
+    }
     let context = tauri::generate_context!();
     // Start the engine first: creating the window and webview can take seconds on a cold start
     // (2.8 s measured on Linux/Xvfb), and the engine's own startup runs in parallel with it.
@@ -156,11 +171,8 @@ pub fn run() {
             mark(&format!("page load {:?}", payload.event()));
             write_timeline();
         })
-        .setup(|app| {
+        .setup(|_app| {
             mark("setup hook");
-            if let Ok(dir) = app.path().app_log_dir() {
-                let _ = LOG_DIR.set(dir);
-            }
             write_timeline();
             Ok(())
         })
