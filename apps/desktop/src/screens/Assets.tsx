@@ -1,5 +1,5 @@
 // All Assets (B12): timeline / grid / list over the whole library, loaded month by month.
-import { keys, unwrap, useApi, useAssetMonths, useCollections, useTags } from "@imagevault/api-client";
+import { keys, unwrap, useApi, useAssetMonths, useCollections, useSources, useTags } from "@imagevault/api-client";
 import type { AssetFilter, AssetMonths, AssetSummary, BulkBody } from "@imagevault/shared-types";
 import { Button, Skeleton } from "@imagevault/ui";
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,6 +7,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { AssetDetail } from "../detail/AssetDetail";
+import { FilterPanel } from "../gallery/FilterPanel";
+import { activeCount, chipsFor, setFilters, useFilters } from "../gallery/filters";
 import { EmptyState, ErrorView, errorText, LoadingRows, Notice } from "../components/States";
 import { bytes, num, plural } from "../format";
 import { runBulk } from "../gallery/bulk";
@@ -38,8 +40,9 @@ interface Prefs {
   sort: Sort;
   order: Order;
   size: Size;
+  filtersOpen: boolean;
 }
-const DEFAULT_PREFS: Prefs = { view: "timeline", sort: "date", order: "desc", size: "M" };
+const DEFAULT_PREFS: Prefs = { view: "timeline", sort: "date", order: "desc", size: "M", filtersOpen: false };
 
 function loadPrefs(): Prefs {
   try {
@@ -64,7 +67,9 @@ export function Assets() {
     });
   // Timeline is the date sort with month headers; other sorts have no months to show.
   const view: View = prefs.view === "timeline" && prefs.sort !== "date" ? "grid" : prefs.view;
-  const filter = useMemo<AssetFilter>(() => ({ hidden }), [hidden]);
+  const extra = useFilters();
+  const filter = useMemo<AssetFilter>(() => ({ ...extra, hidden }), [extra, hidden]);
+  const filtered = activeCount(extra) > 0;
   const months = useAssetMonths(filter);
 
   return (
@@ -122,12 +127,31 @@ export function Assets() {
           <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
           Show hidden
         </label>
+        <Button
+          size="sm"
+          aria-pressed={prefs.filtersOpen}
+          aria-controls="filter-panel"
+          onClick={() => setPrefs({ filtersOpen: !prefs.filtersOpen })}
+        >
+          Filters{filtered ? ` (${activeCount(extra)})` : ""}
+        </Button>
       </div>
+      {filtered ? <FilterChips /> : null}
+
+      <div className="assets-body">
+        {prefs.filtersOpen ? <FilterPanel filter={filter} onClose={() => setPrefs({ filtersOpen: false })} /> : null}
+        <div className="assets-main">
 
       {months.isPending ? (
         <LoadingRows rows={6} label="Loading your photos" />
       ) : months.isError ? (
         <ErrorView what="your photos" error={months.error} onRetry={() => void months.refetch()} />
+      ) : months.data.total === 0 && filtered ? (
+        <EmptyState title="No photos match these filters">
+          <Button size="sm" onClick={() => setFilters({})}>
+            Clear filters
+          </Button>
+        </EmptyState>
       ) : months.data.total === 0 ? (
         <EmptyState title={hidden ? "No hidden photos" : "No photos yet"}>
           {hidden
@@ -136,7 +160,7 @@ export function Assets() {
         </EmptyState>
       ) : (
         <Gallery
-          key={`${hidden}|${prefs.sort}|${prefs.order}`}
+          key={`${hidden}|${prefs.sort}|${prefs.order}|${JSON.stringify(extra)}`}
           filter={filter}
           months={months.data}
           updatedAt={months.dataUpdatedAt}
@@ -147,6 +171,35 @@ export function Assets() {
           hiddenView={hidden}
         />
       )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FilterChips() {
+  const f = useFilters();
+  const tags = useTags();
+  const sources = useSources();
+  const collections = useCollections();
+  const chips = chipsFor(f, {
+    tag: (id) => tags.data?.find((t) => t.id === id)?.name,
+    source: (id) => sources.data?.find((s) => s.id === id)?.display_name,
+    collection: (id) => collections.data?.find((c) => c.id === id)?.name,
+  });
+  return (
+    <div className="chips filter-chips" aria-label="Active filters">
+      {chips.map((c) => (
+        <span key={c.key} className="chip">
+          {c.label}
+          <button type="button" aria-label={`Remove filter ${c.label}`} onClick={() => setFilters(c.remove)}>
+            ×
+          </button>
+        </span>
+      ))}
+      <button type="button" className="link small" onClick={() => setFilters({})}>
+        Clear all
+      </button>
     </div>
   );
 }

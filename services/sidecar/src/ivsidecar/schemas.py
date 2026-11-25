@@ -66,6 +66,52 @@ class MonthCount(Out):
     count: int
 
 
+class FacetValue(Out):
+    value: str
+    count: int
+
+
+class FacetId(Out):
+    id: int
+    count: int
+
+
+class FacetTag(Out):
+    id: int
+    name: str
+    count: int
+
+
+class YesNo(Out):
+    yes: int
+    no: int
+
+
+class DateBounds(Out):
+    min: str | None
+    max: str | None
+
+
+class SizeBounds(Out):
+    min: int | None
+    max: int | None
+
+
+class AssetFacets(Out):
+    total: int
+    kind: list[FacetValue]
+    format: list[FacetValue]
+    status: list[FacetValue]
+    availability: list[FacetValue]
+    source: list[FacetId]
+    collection: list[FacetId]
+    tags: list[FacetTag]
+    favorite: YesNo
+    reviewed: YesNo
+    date: DateBounds
+    size: SizeBounds
+
+
 class AssetMonths(Out):
     total: int
     months: list[MonthCount]
