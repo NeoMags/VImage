@@ -35,17 +35,24 @@ jobs:
         run: uv run pyinstaller --noconfirm --log-level WARN --distpath dist --workpath build packaging/ivsidecar.spec
 
       - name: Add ExifTool (Windows build from exiftool.org)
-        continue-on-error: true
         working-directory: services/sidecar
+        env:
+          # Pinned for reproducible builds. Windows zips moved from exiftool.org to SourceForge;
+          # the SHA-256 comes from https://exiftool.org/checksums-13.64.txt
+          EXIFTOOL_VERSION: "13.64"
+          EXIFTOOL_SHA256: "72c29c44d1e860eebcaefa71692d979af9858fe9a6d7d791a5e7f1dac77804af"
         run: |
-          $v = (Invoke-WebRequest -UseBasicParsing https://exiftool.org/ver.txt).Content.Trim()
-          Invoke-WebRequest -UseBasicParsing "https://exiftool.org/exiftool-${v}_64.zip" -OutFile exiftool.zip
+          $v = $env:EXIFTOOL_VERSION
+          Invoke-WebRequest -UseBasicParsing -UserAgent "curl/8" -MaximumRedirection 10 `
+            "https://sourceforge.net/projects/exiftool/files/exiftool-${v}_64.zip/download" -OutFile exiftool.zip
+          $hash = (Get-FileHash exiftool.zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:EXIFTOOL_SHA256) { throw "exiftool.zip SHA-256 mismatch: $hash" }
           Expand-Archive exiftool.zip -DestinationPath exiftool-unzipped
           $src = Get-ChildItem exiftool-unzipped -Directory | Select-Object -First 1
           New-Item -ItemType Directory -Force dist/ivsidecar/exiftool | Out-Null
           Copy-Item -Recurse "$($src.FullName)/*" dist/ivsidecar/exiftool/
           Rename-Item "dist/ivsidecar/exiftool/exiftool(-k).exe" exiftool.exe
-          "exiftool $v added"
+          "exiftool $v added (sha256 verified)"
 
       - name: Smoke-test packaged sidecar
         working-directory: services/sidecar
@@ -65,6 +72,7 @@ jobs:
           "| Sidecar folder size | $size MB |`n| Process start to ready (cold) | $coldMs ms |" | Out-File -Append $env:GITHUB_STEP_SUMMARY
           if (-not $health.vips.ok -or -not $health.vips.thumbnail_selftest.ok) { throw "libvips not working in packaged build" }
           if ($health.db.schema_version -lt 1) { throw "migration not applied" }
+          if (-not $health.exiftool.ok) { throw "ExifTool not working in packaged build" }
 
       - uses: actions/setup-node@v4
         with:
