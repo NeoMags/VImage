@@ -82,6 +82,12 @@ jobs:
           if (-not $health.exiftool.ok) { throw "ExifTool not working in packaged build" }
           if (-not $health.heif.ok) { throw "HEIC decoding (pillow-heif) not working in packaged build" }
           if (-not $health.stages.ok) { throw "stages 1-4 self-test failed in packaged build" }
+          # Job queue: worker processes are spawned from the frozen exe (multiprocessing.freeze_support)
+          $q = & dist/ivsidecar/ivsidecar.exe --selftest-queue
+          $q | Tee-Object -Append -FilePath health.json
+          $qr = $q | ConvertFrom-Json
+          "| Queue self-test (1 file, stages 1-4, spawned worker) | $($qr.ms) ms |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          if (-not $qr.ok) { throw "job queue self-test failed in packaged build: $q" }
 
       - uses: actions/setup-node@v4
         with:

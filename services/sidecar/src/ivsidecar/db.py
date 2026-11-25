@@ -29,6 +29,9 @@ def connect(path: Path) -> sqlite3.Connection:
     sqlite_vec.load(conn)
     conn.enable_load_extension(False)
     conn.execute("PRAGMA journal_mode = WAL")
+    # NORMAL is the recommended level for WAL: no fsync per commit, still safe against a crash or
+    # kill of the app; only a power cut can lose the last commits, which the job queue redoes.
+    conn.execute("PRAGMA synchronous = NORMAL")
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 5000")
     return conn
@@ -51,6 +54,20 @@ def open_library(library_dir: Path) -> sqlite3.Connection:
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         with sqlite3.connect(backup_dir / f"library-v{current}-{stamp}.db") as dst:
             conn.backup(dst)
-    for version, sql in pending:
-        conn.executescript("BEGIN;\n" + sql + f"\nPRAGMA user_version = {version};\nCOMMIT;")
+    if pending:
+        # Table rebuilds (DROP + RENAME) must run with foreign keys off, or dropping a parent
+        # table would cascade. The pragma cannot change inside a transaction, so it is set
+        # around them, and violations are checked before each commit.
+        conn.execute("PRAGMA foreign_keys = OFF")
+        try:
+            for version, sql in pending:
+                conn.executescript("BEGIN;\n" + sql)
+                bad = conn.execute("PRAGMA foreign_key_check").fetchall()
+                if bad:
+                    conn.execute("ROLLBACK")
+                    raise RuntimeError(f"migration {version} left foreign key violations: {bad[:5]}")
+                conn.execute(f"PRAGMA user_version = {version}")
+                conn.execute("COMMIT")
+        finally:
+            conn.execute("PRAGMA foreign_keys = ON")
     return conn

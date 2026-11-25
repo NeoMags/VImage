@@ -31,7 +31,15 @@ class Resources(BaseModel):
     gpu: Literal["auto", "directml", "cpu"] = "auto"
 
 
-GROUPS: dict[str, type[BaseModel]] = {"resources": Resources}
+class QueueState(BaseModel):
+    """Background processing switched off by the user (survives restarts)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    paused: bool = False
+
+
+GROUPS: dict[str, type[BaseModel]] = {"resources": Resources, "queue": QueueState}
 
 
 def load(conn: sqlite3.Connection, group: str) -> BaseModel:
