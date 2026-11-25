@@ -1,108 +1,81 @@
-# 02 · System architecture
+# 02 · System architecture (desktop-only)
 
-## 1. Shape of the system
-One cloud backend (Supabase Postgres/Auth/Storage + FastAPI + Celery workers), three thin-ish clients, and one local agent on Windows. All clients speak the same versioned REST API; only Auth goes directly to Supabase.
-
+## 1. Components
 ```mermaid
 flowchart LR
-  subgraph Clients
-    WEB[apps/web<br/>React+Vite]
-    DESK[apps/desktop<br/>Tauri + React]
-    MOB[apps/mobile<br/>Expo RN]
+  subgraph App["ImageVault.exe (Tauri 2)"]
+    UI[React + TS UI<br/>packages/ui]
+    SHELL[Rust shell<br/>window, tray, dialogs,<br/>sidecar lifecycle]
   end
-  subgraph Local["Windows PC (Phase 4)"]
-    AGENT[services/desktop-agent<br/>Python sidecar]
-    LDB[(SQLite + FTS5<br/>+ sqlite-vec)]
-    LFS[[Local folders /<br/>drives / NAS]]
+  subgraph Sidecar["Python sidecar (services/sidecar)"]
+    API[FastAPI<br/>127.0.0.1 only]
+    SCAN[Scanner + watcher<br/>+ reconciler]
+    Q[Job runner<br/>SQLite queue]
+    CORE[ivcore stages<br/>ExifTool, pyvips, hashes,<br/>PaddleOCR, OpenCLIP]
   end
-  subgraph Cloud
-    API[services/api<br/>FastAPI]
-    WRK[services/worker<br/>Celery]
-    BRK[(Valkey broker)]
-    subgraph Supabase
-      AUTH[Auth]
-      PG[(Postgres 17<br/>pgvector, FTS, RLS)]
-      ST[(Storage<br/>private bucket)]
-      VAULT[(Vault<br/>OAuth tokens)]
-    end
-    R2[(Cloudflare R2<br/>optional)]
-    LLM[[Vision LLM<br/>Ollama / OpenAI-compatible<br/>optional]]
-    PROV[[Drive / OneDrive /<br/>Dropbox / S3 — Phase 6]]
-  end
-  MOBDB[(expo-sqlite cache)]
+  DB[(library.db<br/>SQLite + FTS5 + sqlite-vec)]
+  CACHE[(thumbs/ previews/<br/>models/)]
+  FILES[[Your folders,<br/>external drives, NAS<br/>read-only]]
+  OLL[[Ollama<br/>optional, local]]
 
-  WEB & DESK & MOB -- JWT --> AUTH
-  WEB & DESK & MOB -- REST/WS + JWT --> API
-  WEB & MOB -- signed upload/download URLs --> ST
-  MOB --- MOBDB
-  DESK -- IPC localhost --> AGENT
-  AGENT --- LDB
-  AGENT -- reads only --> LFS
-  AGENT -- sync API --> API
-  API --> PG
-  API -- sign URLs --> ST
-  API -- enqueue --> BRK
-  BRK --> WRK
-  WRK --> PG & ST
-  WRK -. staged, gated .-> LLM
-  WRK -. adapters .-> PROV
-  WRK -.-> R2
-  API -.-> VAULT
+  UI -- HTTP + per-launch token --> API
+  UI -- invoke --> SHELL
+  SHELL -- spawns / stops --> API
+  API --> DB
+  SCAN --> DB
+  Q --> DB
+  SCAN -- reads --> FILES
+  Q --> CORE --> FILES
+  CORE --> CACHE
+  UI -- asset:// thumbnails --> CACHE
+  CORE -. optional .-> OLL
 ```
 
-## 2. Component dependency order (build order)
-
+## 2. Dependency / build order
 ```mermaid
 flowchart TD
-  DB[supabase migrations] --> CORE[python/ivcore]
-  DB --> API
-  CORE --> WRK[worker]
-  CORE --> AG[desktop-agent]
-  API --> OAS[OpenAPI doc]
+  SQL[sidecar db migrations] --> CORE[python/ivcore]
+  CORE --> SIDE[sidecar: queue, scanner, API]
+  SIDE --> OAS[OpenAPI doc]
   OAS --> TYPES[packages/shared-types]
-  TYPES --> CLIENT[packages/api-client]
-  CLIENT --> UI[packages/ui]
-  UI --> WEB[apps/web]
-  UI --> DESK[apps/desktop]
-  CLIENT --> MOB[apps/mobile]
-  AG --> DESK
-  API --> SYNC[sync endpoints] --> AG & MOB
+  TYPES --> UIP[packages/ui]
+  UIP --> DESK[apps/desktop UI]
+  SIDE --> PKG[sidecar packaging .exe]
+  PKG --> TAURI[Tauri bundle + installer]
+  DESK --> TAURI
 ```
-Rule: a component may depend only on things above it. Clients never import server code; the OpenAPI document is the only contract.
 
-## 3. Responsibilities and boundaries
-| Component | Owns | Must not |
+## 3. Why this shape
+| Choice | Reason | Trade-off |
 |---|---|---|
-| Postgres | Canonical metadata, RLS tenant isolation, FTS, vectors, job state, change log | Hold binary files |
-| Supabase Storage (or R2) | Originals that were uploaded, derivatives (thumbs/previews) | Be publicly readable |
-| FastAPI | AuthZ checks beyond RLS, search orchestration, signed URLs, upload sessions, sync, rate limits | Run heavy image work in request path |
-| Worker | Pipeline stages, retries, cost accounting | Decide user-facing permissions |
-| Desktop agent | Local scan/watch, local processing, local index, push metadata + derivatives | Modify or delete user files |
-| Clients | UI, local cache, offline queue | Hold service-role keys or provider secrets |
+| Python sidecar, not all-Rust | Spec requires Python for local AI; PaddleOCR, OpenCLIP, ExifTool wrappers, pyvips are Python-first | Must package Python for Windows (PyInstaller or embedded Python — spike in D1) and ship it as a Tauri sidecar |
+| UI → sidecar over localhost HTTP (FastAPI) | Same typed contract style as the spec's API; OpenAPI → TS types; easy to test without the UI | Port + token handling; bound to 127.0.0.1, random port, token passed by the shell at launch |
+| Sidecar is the **only** DB writer | No SQLite write contention between Rust and Python | Rust shell never touches the DB |
+| SQLite + FTS5 + sqlite-vec | One file, no server, free, tested at 100k | sqlite-vec 0.1.x search is brute-force (fine to ~100k–300k, re-evaluate beyond) |
+| Persistent queue in SQLite | Survives reboot (spec §16), no Redis | Single machine only — fine for D0 |
+| Thumbnails as files, served via Tauri asset protocol | Fast, no base64 over HTTP | Cache folder must be backed up separately or regenerated |
 
-**Why FastAPI in front of Supabase instead of clients hitting PostgREST directly:** hybrid search, signed-URL issuance, upload sessions, sync batching and rate limiting need server logic; one API surface also keeps desktop/mobile/web identical. The API uses the *user's* JWT for Postgres queries (RLS still applies), and the service role only in workers. Trade-off: one more service to run.
+## 4. Process lifecycle
+1. App start → shell picks a free port, generates a random token, starts `sidecar.exe --port --token --library <dir>`.
+2. Sidecar opens DB (WAL mode), runs pending migrations (`PRAGMA user_version`), requeues `running` jobs left from a crash, starts scanner/watcher and job runner.
+3. UI polls `/health` then loads; live updates via a WebSocket (`/events`).
+4. Close window → app keeps running in tray if "background indexing" is on; Quit → shell asks sidecar to drain current jobs (≤ 5 s) then stops it.
+5. Sidecar crash → shell restarts it (max 3 times / 5 min) and shows a banner.
 
-## 4. Key flows
-**Upload (Phase 1).** Client → `POST /v1/uploads` (filename, size, sha256) → API checks duplicate by hash; if new, returns a resumable upload target (Supabase Storage TUS endpoint — verify chunk limits in Supabase docs at implementation) → client uploads → `POST /v1/uploads/{id}/complete` → API creates `assets` row (status `pending`) + `processing_jobs` → worker runs identify → metadata → hash/pHash → thumbnail → asset `ready` → WebSocket event to client.
+## 5. Library folder (default `%LOCALAPPDATA%\ImageVault`, movable — Q3)
+```
+library.db (+ -wal, -shm)
+thumbs/ab/cd/<asset_uid>_256.webp …   (sharded by uid)
+previews/…
+models/  (downloaded once, SHA-256 verified)
+backups/library-YYYYMMDD.db           (SQLite online backup API, keep last N)
+logs/
+```
 
-**Search.** `POST /v1/search` with text and/or filters and/or reference asset/region → API builds one SQL query: filter CTE → FTS candidates + vector candidates → reciprocal-rank fusion → returns items with `match_type` (`exact_text`, `keyword`, `semantic`, `visual`) so UI separates exact from AI-suggested hits.
-
-**Reference-only assets (Phase 4/6).** Desktop and connectors index files *in place*; Postgres gets metadata, derivatives go to storage, `original_storage_key` stays null. Opening the original requires the source to be reachable (shown as "available on PC-1 / Google Drive").
-
-## 5. Storage layout
-`{workspace_id}/originals/{asset_id}/{sha256}.{ext}` and `{workspace_id}/derived/{asset_id}/{kind}.webp`. Content-addressed names make retries idempotent. Storage adapter interface (`put`, `get_signed_url`, `delete`, `head`) with Supabase Storage and S3/R2 implementations.
-
-## 6. Deployment (proposed)
-| Piece | Where | Notes |
-|---|---|---|
-| Postgres/Auth/Storage | Supabase Pro project | Free tier pauses after 1 week of inactivity — unsuitable beyond dev |
-| API + worker + Valkey | One container host (Docker Compose on a VM, or a PaaS) | Host not chosen (D9); price not verified |
-| CI | GitHub Actions | DB tests on postgres+pgvector service container |
-| Desktop build | GitHub Actions Windows runner, code-signed installer | Signing certificate cost not verified |
-| Environments | dev (local Supabase CLI), staging, prod | Separate Supabase projects |
-
-## 7. Cross-cutting
-- **Observability:** structured JSON logs (sensitive entity values redacted), request IDs propagated to jobs, Sentry for API/clients (account exists in connectors — confirm use).
-- **Config:** env vars only; `.env.example` documents each. No secrets in client bundles.
-- **Versioning:** API under `/v1`; pipeline_version on every job so reprocessing is targeted.
-- **Backups:** Supabase daily backups (plan-dependent, verify retention); storage bucket replication to R2 [proposed, Phase 3+].
+## 6. Security & privacy (single user, offline)
+- Sidecar listens on 127.0.0.1 only; every request needs the per-launch token; CORS locked to the Tauri origin.
+- File access is read-only by design: the sidecar opens files with read flags only; no code path deletes/moves user files (enforced by review + a test that runs the full pipeline against a read-only fixture folder).
+- No telemetry, no network except model downloads (user-initiated) and optional local Ollama.
+- Sensitive entities (phones, emails, addresses) are excluded from logs.
+- Optional app lock (Windows Hello) is a later nice-to-have; disk encryption is left to BitLocker.
+- Installer is unsigned for personal use (SmartScreen warning on first run); signing only if distributed later.

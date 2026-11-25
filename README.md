@@ -1,25 +1,21 @@
 # ImageVault
 
-AI-powered image library and personal knowledge base: import visual assets, extract metadata/OCR/embeddings,
-turn screenshots into Knowledge Cards, and search everything from web, Windows, Android and iOS.
+Personal, offline-first Windows app that indexes your images where they already live (folders, external drives,
+NAS), extracts metadata, text and visual features on your own PC, turns screenshots into searchable Knowledge
+Cards, and finds things by text, meaning or visual similarity.
 
-**Status: Phase 1 planning. No application code yet.** Start with [docs/README.md](docs/README.md).
+**Status:** planning approved in part; no application code yet. Start with [docs/README.md](docs/README.md).
+**Scope (2026-11-25):** desktop only, single user, free tools only, no cloud services.
 
-| Path | Purpose | Stack | Arrives in |
-|---|---|---|---|
-| `apps/web` | Web client | React, TypeScript, Vite, Tailwind, shadcn/ui, TanStack Query | Phase 1 |
-| `apps/desktop` | Windows client (Tauri shell around shared UI) | Tauri 2, Rust, React | Phase 4 |
-| `apps/mobile` | Android/iOS client | Expo (React Native), TypeScript, expo-sqlite | Phase 5 |
-| `services/api` | REST + WebSocket API, auth verification, search | Python, FastAPI, Pydantic | Phase 1 |
-| `services/worker` | Cloud processing pipeline (thumbnails, metadata, OCR, embeddings) | Python, Celery | Phase 1 |
-| `services/desktop-agent` | Local indexer + local AI sidecar for the desktop app | Python (bundled), SQLite | Phase 4 |
-| `python/ivcore` | Shared Python library: extractors, hashing, model adapters, pipeline stages | Python | Phase 1 |
-| `packages/shared-types` | TS types generated from the API's OpenAPI document | TypeScript | Phase 1 |
-| `packages/api-client` | Typed API client used by all three clients | TypeScript | Phase 1 |
-| `packages/ui` | Shared React components (web + desktop) | React, shadcn/ui | Phase 1 |
-| `packages/config` | Shared tsconfig / ESLint / Prettier | — | Phase 1 |
-| `supabase/` | SQL migrations, seed, database tests | Postgres 17, pgvector | Phase 1 |
-| `infra/` | Docker Compose for local dev, deployment config | Docker | Phase 1 |
-| `docs/` | PRD, architecture, schema, API, sync, AI pipeline, UI, backlog, risks | Markdown | now |
+| Path | Purpose | Stack |
+|---|---|---|
+| `apps/desktop` | Windows app: UI + Tauri shell | Tauri 2, Rust, React, TypeScript, Vite, Tailwind, shadcn/ui |
+| `services/sidecar` | Local engine: library DB, scanner/watcher, job queue, localhost API | Python, FastAPI, SQLite + FTS5 + sqlite-vec |
+| `python/ivcore` | Pipeline stages and model adapters | Python, ExifTool, pyvips, PaddleOCR, OpenCLIP (ONNX) |
+| `packages/ui` | React components | shadcn/ui |
+| `packages/shared-types` | TS types generated from the sidecar OpenAPI | TypeScript |
+| `packages/config` | Shared tsconfig/ESLint/Prettier | — |
+| `archive/cloud-supabase` | Parked cloud schema for a possible future sync/multi-user version | Postgres, pgvector |
+| `docs/` | PRD, architecture, schema, API, indexing, AI pipeline, UI, backlog, risks | Markdown |
 
-Tooling: pnpm workspaces (JS), uv workspace (Python). No Turborepo/Nx until build times justify it.
+Tooling: pnpm workspaces (JS), uv workspace (Python).

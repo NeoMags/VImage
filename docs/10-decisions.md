@@ -1,16 +1,24 @@
-# 10 · Decisions needed from Neo
+# 10 · Decisions
 
-Each has a recommendation; Phase 1 coding (B1+) waits on **D1–D5**. D6–D10 can wait until their phase.
+## Decided
+| ID | Decision | Date | Effect |
+|---|---|---|---|
+| D0 | **Desktop-only (Windows), single user (Neo), free tools only, no paid or commercial cloud services or storage.** Scale to others later, if ever. | 2026-11-25 | Replaces D1 below. Supabase, Postgres, pgvector, Redis/Celery, R2, cloud AI, web and mobile are out of scope. |
+| D1 | ~~Web + cloud first~~ — superseded by D0 the same day | 2026-11-25 | — |
+| D2 | Originals stay where they are; ImageVault stores only its own database, thumbnails and previews | 2026-11-25 (follows from D0) | No copies of user files; nothing uploaded |
+| D3 | Local store: SQLite + FTS5 + sqlite-vec | 2026-11-25 (follows from D0) | Tested: 13/13 schema checks; 100k CLIP vectors KNN ≈ 90 ms median in the build container (doc 03) |
+| D4 | No cloud AI. Optional local vision LLM through Ollama (free) in phase D5 | 2026-11-25 (follows from D0) | No AI running costs |
+| D5 | No Redis/Celery: persistent job queue in SQLite inside the sidecar | 2026-11-25 (follows from D0) | One process, nothing extra to install |
+| D6 | Google Photos via **Google Takeout export** (free), not the Google Photos API | 2026-11-25 (follows from D0) | No Google Cloud project or OAuth app needed |
 
-| ID | Decision | Options | Recommendation | Why |
-|---|---|---|---|---|
-| **D1** ✅ Decided 2026-11-25: (a) | MVP platform cut | (a) Web + cloud first, local indexing moves to Phase 4 · (b) Keep "local indexing" in Phase 1 via an early desktop agent · (c) Build web, desktop, mobile in parallel | **(a)** | Browser cannot index local folders; (b) pulls the hardest packaging work forward; (c) contradicts spec §26 "do not implement all phases simultaneously" |
-| **D2** | Where originals live | (a) Uploads stored in cloud; desktop/connector sources reference-only by default with per-source "back up originals" toggle · (b) Everything copied to cloud · (c) Metadata/thumbnails only, never originals | **(a)** | Lowest cost and least surprise; uploads need somewhere to live; avoids silently duplicating multi-TB drives |
-| **D3** | Desktop local store | (a) SQLite + FTS5 + sqlite-vec · (b) SQLite + LanceDB · (c) Embedded Postgres | **(a)**, confirmed by Phase 4 spike | One file, same engine family as mobile; spike must show 100k-vector search on target PC |
-| **D4** | Cloud vision-LLM | (a) None in Phase 2 (OCR + rules only), add later · (b) OpenAI-compatible provider with budget cap · (c) Self-hosted Ollama on a GPU host | **(b) with cap**, or (a) if budget is tight | Cards need summarization; cap bounds spend; provider stays swappable |
-| **D5** | Queue broker | (a) Valkey (BSD) · (b) Redis 8 under AGPLv3 · (c) No broker: Postgres-only queue (SKIP LOCKED) | **(a)** | Spec names Redis+Celery; Valkey keeps the protocol without licence questions. (c) is simpler and worth considering if you prefer fewer moving parts |
-| D6 | Face recognition model | Commercial-licensed model vs open model with permissive licence vs drop faces | Decide in Phase 7 | InsightFace pretrained weights are non-commercial only |
-| D7 | Performance targets | Accept doc 01 §7 or adjust; also share target Windows PC specs | Accept as starting point | Spec requires targets; none given |
-| D8 | Video | Metadata + poster only until a video PRD vs full pipeline | Metadata + poster only | No pipeline defined in spec; costly |
-| D9 | API/worker hosting | VM with Docker Compose vs PaaS | Decide at B22 | Price not verified yet |
-| D10 | Product name | "ImageVault" vs "VImage" | Your call | Spec and project name differ; affects repo, bundle IDs, domain |
+## Deviations from the master spec (flagged, accepted by D0)
+The spec names Supabase, PostgreSQL, pgvector, RLS, Supabase Auth, Redis, Celery, S3/R2, cloud connectors, web and mobile apps, subscriptions and multi-tenant SaaS. None of these are needed for a single-user offline Windows app, and several have running costs. They are parked, not deleted: the tested Postgres schema is in `archive/cloud-supabase/` and maps table-for-table to the SQLite schema. FastAPI, React/TypeScript, Tauri, OpenCLIP, PaddleOCR, Tesseract, Pillow, libvips, ExifTool, SHA-256 and pHash stay as specified.
+
+## Open (none block starting Phase D1)
+| ID | Question | Recommendation | Needed by |
+|---|---|---|---|
+| Q1 | GitHub repo name (`imagevault` or `vimage`) — please create it empty and private | `imagevault` | Now (push) |
+| Q2 | Your PC: Windows version, CPU, RAM, GPU (make/model), and roughly how many images and how many GB you want indexed | — | Before D2 (OCR/CLIP sizing); helps D1 perf targets |
+| Q3 | Where the library database + thumbnails live | `%LOCALAPPDATA%\ImageVault` with an option to move it to another drive | D1 |
+| Q4 | Face grouping (phase D6): InsightFace models are licensed non-commercial; fine for personal use, but must be replaced if this ever becomes a product | Use only if you still want faces at D6 | D6 |
+| Q5 | Video | Metadata + poster frame only | D1 |

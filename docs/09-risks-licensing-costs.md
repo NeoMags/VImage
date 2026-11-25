@@ -1,57 +1,46 @@
-# 09 · Risks, API limitations, licensing, infrastructure costs
+# 09 · Risks, limitations, licensing, costs (desktop-only, personal)
 
-Legend: **V** = verified from an official/primary source on 2026-11-25 · **U** = unverified, must be checked before relying on it · **E** = my estimate.
+Legend: **V** verified from an official/primary source on 2026-11-25 · **U** unverified, check before relying on it · **E** estimate.
 
-## 1. Technical risks
-| Risk | Impact | Likelihood | Mitigation |
-|---|---|---|---|
-| HNSW + RLS/workspace filtering returns too few results for small tenants in a big table | Search quality | Medium | pgvector iterative scans; partition by workspace at scale; perf test in Phase 3 |
-| Desktop installer size with PaddleOCR + CLIP runtimes | Adoption | High | ONNX Runtime + first-run model download (doc 06 §5) |
-| Python sidecar packaging on Windows (PyInstaller/embedded Python, AV false positives) | Desktop release | Medium | Spike in Phase 4; code-sign sidecar; consider Rust-native ONNX later |
-| Mobile background limits stop "auto-sync everything" | Mobile UX | High (by OS design) | Opportunistic sync + foreground catch-up; set user expectations |
-| OCR quality on mixed-language / small-font screenshots | Core feature | Medium | Accuracy spike on Neo's real screenshots before committing engine; user correction UI |
-| LLM-generated cards present wrong facts | Trust | Medium | Provenance labels, confidence, link every fact to OCR region, user review state |
-| Sync conflicts lose user edits | Data integrity | Medium | Rules in doc 05; audit trail of losing values; conflict test matrix |
-| Scope: 9 phases × 4 platforms is very large | Delivery | High | Phase gates; web+cloud first (D1); no parallel phases |
-| Python 3.13 wheel availability for Paddle/Torch | Build | Medium (U) | Pin worker Python to supported version |
-
-## 2. API limitations
-| API | Limitation | Status |
+## 1. Costs
+**$0 running cost.** No cloud services, no API keys, no subscriptions. Everything runs on your PC.
+| Item | Cost | Status |
 |---|---|---|
-| Google Photos Library API | Since 2025-03-31 only app-created media can be listed/read; full-library access removed. Use **Picker API** (user-selected items). | **V** (developers.google.com/photos/support/updates) |
-| Google Drive / Gmail-class restricted scopes | Apps using restricted scopes need Google OAuth verification and possibly a third-party security assessment; `drive.file` scope avoids it but only sees files the user opens with the app | **U** — check Google's OAuth verification docs before Phase 6 |
-| OneDrive (Microsoft Graph) / Dropbox | Delta/cursor APIs exist for incremental sync; rate limits and throttling headers differ per provider | **U** — per-adapter spike |
-| iOS Photos | Limited-library permission; no unrestricted background access | **U** for current iOS specifics; design assumes worst case |
-| Supabase Storage resumable uploads | TUS protocol supported; chunk size/limits plan-dependent | **U** |
-| Supabase free tier | Projects pause after 1 week inactivity | **V** (supabase.com/pricing) |
+| Tauri, React, FastAPI, SQLite, sqlite-vec, PaddleOCR, Tesseract, OpenCLIP, ONNX Runtime, ExifTool, libvips, Ollama | Free / open source | U except sqlite-vec (**V**: MIT/Apache-2.0 from package metadata) |
+| GitHub private repo + Actions | Free plan includes private repos and a monthly Actions minutes quota; Windows runners consume minutes faster | U — check your plan's quota |
+| Code-signing certificate | Not needed for personal use (SmartScreen warning on first install) | — |
+| Disk | Thumbnails ≈ 0.3 MB/asset → ~30 GB per 100k assets; models ≈ 0.3–1 GB | E |
+| Google Takeout | Free | U (Google service, no API) |
+No longer applicable from the first plan: Supabase ($25+/mo), R2, cloud LLM usage, API hosting, Apple/Google developer accounts, Google OAuth verification.
 
-## 3. Licensing (for a commercial product)
-| Component | Licence | Concern | Status |
+## 2. Technical risks
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Packaging Python + native libs (pyvips/libvips, ONNX Runtime, ExifTool) as a Tauri sidecar on Windows | Could block D1 | B2 spike first; fall back to embedded Python distribution |
+| Antivirus false positives on PyInstaller exes | Annoying on own PC | Embedded Python instead of one-file exe; add AV exclusion if needed |
+| sqlite-vec brute-force search beyond ~300k images | Slower similar search | Measured 90 ms @100k (container); options at scale: int8/binary quantization, prefilter, or ANN library |
+| Cloud-client placeholder files getting downloaded during scans | Bandwidth/disk surprise | Skip offline-attribute files by default (verify per client) |
+| NAS / exFAT lack stable file ids | Renames look like delete+add | Re-link by sha256 during reconcile |
+| HEIC decoding in libvips Windows build | HEIC thumbnails missing | Verify libheif in the build; fallback `pillow-heif` |
+| OCR quality on small/mixed-language text | Core D2 feature | Accuracy spike on your screenshots; editable text |
+| Large scope even desktop-only | Delivery | Strict phase gates, one phase at a time |
+
+## 3. Licensing (personal use — all fine; noted for a possible future product)
+| Component | Licence | Note | Status |
 |---|---|---|---|
-| Tauri, React, Vite, Expo, FastAPI, Celery, TanStack, Zod, shadcn/ui | MIT / Apache-2.0 / BSD | None expected | U (standard licences, confirm in SBOM) |
-| OpenCLIP code + ViT-B-32 laion2b_s34b_b79k weights | MIT | LAION notes datasets are for research; weights themselves MIT | **V** (model card summary) — re-check model card at adoption |
-| PaddleOCR / PaddlePaddle | Apache-2.0 | None expected | U |
-| Tesseract | Apache-2.0 | None | U |
-| libvips | LGPL-2.1+ | Dynamic linking OK; keep it a shared lib, ship notices | U |
-| libheif / HEVC decoding | libheif LGPL; HEVC decoders may carry **patent** licensing questions | Legal check before shipping HEIC decode in desktop installer | U |
-| ExifTool | Perl Artistic / GPL (dual) | Run as separate process, not linked | U |
-| Redis 8 | RSALv2 / SSPLv1 / **AGPLv3** (choose one) | AGPL network clause if modified; RSAL restricts offering Redis as a service | **V** (redis.io/legal/licenses) |
-| Valkey | BSD-3-Clause | None | **V** (redis.io blog comparison; confirm at valkey.io) |
-| InsightFace pretrained face models | **Non-commercial research only** | Cannot use in commercial product without paid licence | **V** (GitHub README, insightface.ai) |
-| sqlite-vec | MIT/Apache (expected) | Maturity for 100k+ vectors | U |
-| Ollama | MIT (runtime); each model has its own licence | Check each vision model licence | U |
+| sqlite-vec | MIT / Apache-2.0 | — | **V** |
+| OpenCLIP ViT-B-32 laion2b weights | MIT | LAION datasets are research-oriented; weights MIT | **V** (model card summary) |
+| InsightFace pretrained face models | Non-commercial research only | OK personally; replace before any commercial use | **V** |
+| Redis 8 | RSALv2/SSPLv1/AGPLv3 | No longer used | **V** |
+| PaddleOCR, Tesseract, ONNX Runtime | Apache-2.0 / Apache-2.0 / MIT | — | U |
+| libvips | LGPL-2.1+ | ship as DLL + notice | U |
+| libheif / HEVC | LGPL; HEVC patents | Personal use low concern; check before distribution | U |
+| ExifTool | Artistic/GPL dual | run as separate process | U |
+| Ollama models | per model | check each model's licence | U |
 
-## 4. Infrastructure costs
-**Verified unit prices (2026-11-25):**
-- Supabase Pro: from **$25/month**; includes 8 GB DB disk, 100 GB storage, 250 GB egress, 100k MAU. Overage: storage **$0.0213/GB**, DB disk **$0.125/GB**, egress **$0.09/GB**. Compute add-ons listed: Micro $10, Small $15, Medium $60 (how much compute credit Pro includes — **U**). Source: supabase.com/pricing.
-- Cloudflare R2 Standard: **$0.015/GB-month**, Class A $4.50/M, Class B $0.36/M, egress free, free tier 10 GB-month + 1M A + 10M B. Source: developers.cloudflare.com/r2/pricing.
-
-**Worked example — single user, 100k assets (E):** avg original 4 MB → ~400 GB originals; derivatives ~0.3 MB/asset → ~30 GB; embeddings 100k × 512 × 4 B ≈ 0.2 GB + HNSW overhead → DB well under 8 GB.
-| Option | Monthly (E, storage only) |
-|---|---|
-| Originals in Supabase Storage | $25 base + (430 − 100) × $0.0213 ≈ **$32** |
-| Originals in R2, derivatives in Supabase | $25 + (400 − 10) × $0.015 ≈ **$31**, but R2 egress free (matters if originals are downloaded often) |
-| Reference-only (originals stay on PC/Drive) | ≈ **$25** + compute |
-Plus (all **U**, not priced): API/worker/Valkey host, compute add-on beyond included credit, cloud vision-LLM usage, Sentry, domain, Windows code-signing certificate, Apple Developer Program, Google Play developer account, Google OAuth security assessment (Phase 6).
-
-**LLM cost formula (E):** `images_gated × (input_tokens + output_tokens) × provider_price`. With gating (doc 06 §1) only screenshots/documents with text get cards; a monthly budget cap per workspace bounds worst case. Prices to be pulled from the chosen provider's official page when D4 is decided.
+## 4. External limitations
+| Item | Limitation | Status |
+|---|---|---|
+| Google Photos API | Since 2025-03-31 only app-created media or Picker selections; not used — Takeout instead | **V** |
+| Google Takeout format | Not formally documented; JSON sidecar names/fields vary | U — parse defensively |
+| Windows file watching | `ReadDirectoryChangesW` can overflow and doesn't see changes while the app is closed | Reconcile scans (doc 05) |

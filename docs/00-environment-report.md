@@ -16,9 +16,14 @@ Inspected 2026-11-25 in the cloud build container used for this planning work (n
 | Expo CLI / Tauri CLI | **missing** | Installed per-package (`npx expo`, `@tauri-apps/cli`) — no global install needed |
 | Hardware | 4 vCPU, 15 GiB RAM, no GPU | Fine for API/worker dev; local AI benchmarks must run on Neo's target Windows PC |
 
-Not inspected: Neo's Windows machine (GPU, RAM, Windows version). The desktop performance targets in the PRD need that hardware profile — see decision D7 in [10-decisions.md](10-decisions.md).
+Not inspected: Neo's Windows machine (GPU, RAM, Windows version). The desktop performance targets in the PRD need that hardware profile — see Q2 in [10-decisions.md](10-decisions.md).
 
 ## What was actually executed
-- Draft migration loaded into Postgres 17 + pgvector 0.8.7 without errors.
-- `supabase/tests/rls_isolation_test.sql` passed: sign-up creates a personal workspace; user A sees only A's assets/workspace; a direct insert into B's workspace is rejected by RLS; a face cannot be assigned a person without `confirmed_by`; CLIP HNSW and pHash (bit/Hamming HNSW) indexes are used by the planner.
+- [Cloud plan, now archived] Draft migration loaded into Postgres 17 + pgvector 0.8.7 without errors.
+- `archive/cloud-supabase/tests/rls_isolation_test.sql` passed: sign-up creates a personal workspace; user A sees only A's assets/workspace; a direct insert into B's workspace is rejected by RLS; a face cannot be assigned a person without `confirmed_by`; CLIP HNSW and pHash (bit/Hamming HNSW) indexes are used by the planner.
 - Not executed: any Supabase-hosted behaviour (Auth, Storage, Vault), any AI model, any client app.
+
+## Update 2026-11-25 (desktop-only re-plan)
+- The Postgres/pgvector results above now apply to the parked schema in `archive/cloud-supabase/`.
+- Local schema `services/sidecar/db/migrations/0001_initial.sql` tested with Python 3.13 sqlite3 (SQLite 3.53.1, FTS5 on) + sqlite-vec 0.1.9: 13/13 checks passed; 100k-asset benchmark in doc 03 §4.
+- Windows-specific behaviour (file ids, watcher, packaging, HEIC, DirectML) cannot be tested in this Linux container; it needs Neo's PC or a Windows CI runner (backlog B2, B22).

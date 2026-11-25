@@ -1,49 +1,40 @@
-# 08 · Implementation backlog (Phase 1 detailed, later phases epic-level)
+# 08 · Implementation backlog (desktop-only)
 
-Priority: **P0** = Phase 1 cannot ship without it · **P1** = Phase 1 should have · **P2** = later. Size: S ≤ 1 day, M 2–4 days, L ≥ 1 week (rough estimates for one developer + Claude, not commitments). Each item is done only when its tests pass against real services (no mocks standing in for Supabase/Storage in integration tests).
+Priority **P0** = D1 can't ship without it · **P1** = should have · Size S ≤ 1 day, M 2–4 days, L ≥ 1 week (rough). Done = tests pass on real files, not mocks.
 
-## Phase 1 — Foundation (web + cloud)
+## Phase D1 — Foundation
 | ID | Item | Pri | Size | Depends on | Done when |
 |---|---|---|---|---|---|
-| B0 | Neo approves this plan + decisions D1–D5 | P0 | — | — | Decisions recorded in 10-decisions.md |
-| B1 | Create GitHub repo, push this skeleton, branch protection, CI skeleton | P0 | S | B0, GitHub access | CI green on empty checks |
-| B2 | Supabase dev + staging projects; Supabase CLI local stack | P0 | S | B0 | `supabase db reset` applies migration |
-| B3 | Finalize migration; port tests to pgTAP; CI DB job | P0 | M | B2 | RLS matrix test (4 roles × CRUD × tables) passes in CI |
-| B4 | Spike: Celery + Valkey + reconciler; pyvips + HEIC; ExifTool in container | P0 | M | B1 | Spike report with measured thumb time/MP and image size of worker container |
-| B5 | `python/ivcore`: identify, metadata, hash/pHash, thumbnail stages + unit tests on 50-file fixture set (incl. corrupt, HEIC, huge, no-EXIF) | P0 | L | B4 | Fixture expectations match ExifTool ground truth |
-| B6 | `services/api` skeleton: JWT verification (JWKS), user-scoped DB session, problem+json, rate limiting, request ids, OpenAPI | P0 | M | B3 | Auth tests: expired/forged/other-tenant tokens rejected |
-| B7 | Upload sessions (TUS to Supabase Storage), complete, duplicate short-circuit, magic-byte check, size limit | P0 | L | B6, B5 | 500-file batch + resume-after-reload E2E passes |
-| B8 | Worker service: job claim, stages 1–4, retries, reconciler, WS events | P0 | L | B5, B7 | Kill worker mid-batch → all assets reach `ready` |
-| B9 | Asset list/detail/patch/hide/restore, bulk ops, tags, collections, notes endpoints | P0 | L | B6 | API tests incl. viewer-role denial |
-| B10 | `packages/shared-types` + `api-client` generated from OpenAPI | P0 | S | B9 | Type-check fails when API contract changes |
-| B11 | Web app shell: auth (email + Google), routing, theme, layout, error/empty states | P0 | M | B10 | Google OAuth works on staging domain |
-| B12 | Virtualized gallery (grid/list, keyset scroll, date headers), selection + bulk bar | P0 | L | B11 | 100k seeded assets: scroll memory < 500 MB, first page p95 < 250 ms |
-| B13 | Asset detail drawer with provenance sections | P0 | M | B12 | Edits persist with origin `user` |
-| B14 | Filters (Phase 1 set) | P1 | M | B12 | Seeded-dataset count tests |
-| B15 | Collections UI (nested, add/remove/reorder) | P1 | M | B12 | |
-| B16 | Processing queue UI + retry | P1 | S | B8 | |
-| B17 | Dashboard counters | P1 | S | B9 | |
-| B18 | Export (JSON + originals ZIP) and account deletion | P0 | M | B9 | Round-trip + post-deletion verification tests |
-| B19 | Audit logging for hide/restore/bulk/delete/export | P0 | S | B9 | |
-| B20 | Perf harness: synthetic 10k/100k dataset generator + k6/locust scripts for NFR table | P1 | M | B9 | Report against doc 01 §7 |
-| B21 | Security pass: headers, CORS, CSP, signed-URL TTLs, secret scan, dependency audit | P0 | S | B11 | Checklist signed off |
-| B22 | Deploy staging (API, worker, Valkey) + runbook | P0 | M | B8, D9 | Staging reachable; backup/restore drill done once |
+| B1 | GitHub repo + push skeleton + CI (ubuntu: lint/type/test incl. DB tests) | P0 | S | Q1 | CI green |
+| B2 | **Spike:** package a FastAPI + pyvips + ExifTool sidecar as a Windows exe (PyInstaller vs embedded Python) and launch it from a Tauri 2 hello-world; measure installer size and cold start | P0 | M | B1 | Installer runs on Neo's PC; sizes/times recorded |
+| B3 | Sidecar core: config, library folder, migrations runner + pre-migration backup, WAL, integrity check, `/health`, token auth, OpenAPI | P0 | M | B2 | Unit + API tests |
+| B4 | `ivcore` stages 1–4 (identify, metadata, hash/pHash, thumbnails) + 50-file fixture set (HEIC, huge, corrupt, no EXIF, CMYK, animated GIF, video) | P0 | L | B3 | Fixture expectations vs ExifTool pass |
+| B5 | Job queue: enqueue/claim/retry/backoff/crash recovery, process pool, priority, pause, resource settings | P0 | M | B3 | Kill -9 mid-batch → all assets reach `ready` |
+| B6 | Sources + scanner: file ids, resumable full scan, exclusions, placeholder-file skip | P0 | L | B5 | 100k-file scan resumes after kill |
+| B7 | Watcher + debouncer + reconciler; move/rename/missing/unreachable rules (doc 05 §3) | P0 | L | B6 | Rename storm + drive-unplug tests pass |
+| B8 | API: assets list/detail/patch/hide, bulk, tags, collections, notes, jobs, stats, WS events | P0 | L | B5 | API tests |
+| B9 | `shared-types` generation + TanStack Query hooks | P0 | S | B8 | tsc fails on contract drift |
+| B10 | Tauri shell: sidecar lifecycle/restart, port/token handoff, folder picker, reveal in Explorer, asset protocol scope limited to cache dir | P0 | M | B2 | Manual + Rust unit tests |
+| B11 | UI shell: layout, theme, routing, empty/error/loading states | P0 | M | B9, B10 | |
+| B12 | Virtualized gallery (grid/list/timeline, date headers, keyset scroll), selection + bulk bar | P0 | L | B11 | 100k assets: < 500 MB RAM, smooth scroll on Neo's PC |
+| B13 | Asset detail panel (provenance sections, locations, notes) | P0 | M | B12 | |
+| B14 | Sources screen + add-folder dialog | P0 | M | B11 | |
+| B15 | Filters (D1 set) | P1 | M | B12 | Counts match fixture library |
+| B16 | Collections UI | P1 | M | B12 | |
+| B17 | Processing queue UI + resource controls | P1 | S | B5, B11 | |
+| B18 | Dashboard | P1 | S | B8 | |
+| B19 | Backup/restore + JSON/CSV export | P0 | M | B3 | Restore on clean install reproduces tags/notes/collections |
+| B20 | Read-only guarantee test: full pipeline over a read-only fixture folder; no write/delete/rename syscalls on sources | P0 | S | B7 | |
+| B21 | Perf run on Neo's PC with his real folders (opt-in) against PRD §6 | P1 | S | B12 | Report |
+| B22 | Windows build workflow → unsigned installer artifact | P1 | S | B10 | Installer downloadable from CI |
 
-Critical path: B0 → B1/B2 → B3 → B6 → B7 → B8 → B12 → B22.
+Critical path: B1 → B2 → B3 → B5 → B6 → B7 → B8 → B12 → B22. B2 is the biggest unknown and goes first.
 
-## Later phases (epics; each gets its own detailed backlog + PRD before coding)
-| Epic | Phase | Key dependencies / spikes first |
+## Later phases (epics; detailed backlog written before each phase)
+| Epic | Phase | Spike first |
 |---|---|---|
-| E2.1 OCR stage (PaddleOCR + Tesseract fallback), text regions | 2 | Accuracy spike on 200 real screenshots (Neo's sample set) |
-| E2.2 Entity extraction + sensitive flagging | 2 | E2.1 |
-| E2.3 Knowledge Cards + edit + MD/PDF export | 2 | E2.2, LLM adapter, D4 budget |
-| E2.4 FTS + exact search, Screenshots & Knowledge views | 2 | E2.1 |
-| E3.1 CLIP embeddings + model registry + reprocess queue | 3 | ONNX vs PyTorch spike |
-| E3.2 Hybrid search + filter builder + Smart Collections | 3 | E3.1 |
-| E3.3 Duplicate detection + comparison screen | 3 | E3.1 |
-| E4.x Desktop agent, watcher, local index, sync push/pull, change_log triggers, Tauri app, installer signing | 4 | D3 local store spike, target-PC benchmark |
-| E5.x Expo app, media permissions, background upload, share extension, offline cache, doc/card scan | 5 | Apple/Google developer accounts |
-| E6.x Connector framework + Drive, OneDrive, Dropbox, S3/R2; Google Photos Picker | 6 | OAuth app verification for restricted scopes |
-| E7.x Faces (opt-in, consent), object/region search, architecture taxonomy | 7 | D6 model licence |
-| E8.x Knowledge graph, MCP server, Obsidian/Notion/n8n/webhooks | 8 | |
-| E9.x Orgs, teams, plans, billing, entitlements | 9 | Billing provider choice |
+| OCR (PaddleOCR ONNX + Tesseract), text regions, entities, screenshot classifier, template Knowledge Cards, FTS/exact search, MD/PDF export | D2 | OCR accuracy on ~200 of Neo's real screenshots; ONNX parity |
+| CLIP ONNX embeddings, semantic + similar + hybrid search, filter builder, Smart Collections, duplicate manager | D3 | DirectML GPU vs CPU speed |
+| Google Takeout import, drag-drop/clipboard, Explorer "Send to", tray | D4 | Takeout JSON variants |
+| Ollama descriptions, knowledge graph, local MCP server | D5 | Which free vision model runs acceptably on Neo's GPU |
+| Faces (opt-in), object/region search, architecture classifiers | D6 | Face model licence (Q4) |

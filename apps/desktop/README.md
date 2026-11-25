@@ -1,3 +1,4 @@
 # apps/desktop
-Tauri 2 Windows app. Reuses packages/ui. Spawns services/desktop-agent as a sidecar for indexing and local AI.
-Not started before Phase 4. See docs/05-local-indexing-and-sync.md.
+Tauri 2 Windows app: React + TypeScript UI (Vite, Tailwind, shadcn/ui, TanStack Query) and a thin Rust shell
+(window, tray, autostart, folder picker, "open in Explorer", sidecar lifecycle). All library data goes through the
+Python sidecar's local API. See docs/02-architecture.md.

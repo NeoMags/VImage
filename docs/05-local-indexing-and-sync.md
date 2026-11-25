@@ -1,56 +1,47 @@
-# 05 · Local indexing and synchronization
+# 05 · Local indexing (and why there is no sync yet)
 
-Applies from Phase 4 (desktop) and Phase 5 (mobile). Phase 1 is cloud-only (D1).
+Desktop-only (D0): there is no cloud and no second device, so **there is nothing to synchronize**. "Sync" in this build means keeping the library in step with the files on disk. A cloud/multi-device sync design existed in the first plan; if that is ever wanted, the `uid` columns and the archived Postgres schema are the starting point.
 
-## 1. Model in one paragraph
-Each device keeps a **local index** it can search fully offline. The cloud is the **merge point and system of record for user-authored metadata** (tags, notes, collections, confirmations). Files stay where they are: the desktop indexes in place and uploads only metadata + derivatives unless the user turns on "back up originals" for a source (D2). Sync is **pull by change-log cursor, push by idempotent mutation batch**, with per-field last-writer-wins for scalar fields and add/remove sets for memberships.
+## 1. Sources
+| Kind | Identity of a file (`file_key`) | Offline behaviour |
+|---|---|---|
+| Local folder (NTFS) | volume serial + NTFS file id (stable across rename/move on the same volume) | — |
+| External drive | volume GUID/serial + file id; drive letter may change → re-matched by `volume_id` | Unplugged → source `unreachable`, locations `unreachable`, assets stay searchable with cached thumbs |
+| Network share / NAS | path + size + mtime (SMB file ids not reliable — verify) | Share down → `unreachable`; retry with backoff |
+| exFAT/FAT32 drives | no stable file id → path + size + mtime | Renames look like delete + add; reconciled by sha256 |
+| Google Takeout (D4) | path inside the extracted Takeout folder; JSON sidecar gives original date/GPS/description | Format is not officially documented — parse defensively, keep raw JSON |
 
-## 2. Desktop agent (Windows)
-| Concern | Design |
+Folders kept in sync by OneDrive/Google Drive/Dropbox desktop clients are just local folders here. Caution: "online-only" placeholder files would be **downloaded** if read; default rule skips files with the `FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS`/offline attribute (verify attribute behaviour per client in D1).
+
+## 2. Scan → watch → reconcile
+1. **Full scan** (new source, or user request): walk directories breadth-first; record progress in `scan_runs.resume_token` after each directory so a reboot resumes rather than restarts. For each file: stat → if `(file_key, size, mtime)` unchanged → skip; else enqueue `identify`.
+2. **Watch:** `ReadDirectoryChangesW` (Python `watchdog` or Rust `notify` — decide in D1 spike) on each active source. Events are debounced (2 s) and batched into `scan_runs(kind='watch_batch')`. Files still being written (size changing, locked) are retried later.
+3. **Reconcile:** every 6 h **[proposed]**, on app start, on drive reconnect, and on watcher buffer overflow: incremental scan comparing stat data with `file_locations`. Watchers miss events while the app is closed; reconcile covers that.
+
+## 3. Change rules
+| Observation | Result |
 |---|---|
-| Local store | SQLite (WAL) with FTS5 for text and **sqlite-vec** for vectors (verify current license/maturity before Phase 4 — D3). Thumbnail cache on disk, LRU-capped (default 5 GB). |
-| Source identity | Windows: volume serial + NTFS file ID (`GetFileInformationByHandle`) as `provider_item_id`, path as attribute → survives renames/moves within a volume. Network shares: path + size + mtime + hash (no stable file IDs guaranteed). External drives: volume GUID; drive offline → locations become `unreachable`, never `deleted`. |
-| Change detection | `ReadDirectoryChangesW` watcher (via Rust `notify` crate in Tauri or `watchdog` in Python — pick one in Phase 4 spike) **plus** periodic reconciliation scan (watchers drop events on overflow and do not cover offline periods). USN journal considered later for NTFS-only fast rescans (needs elevated rights — verify). |
-| Move/rename detection | Same file ID new path → `moved`. Unknown ID but known sha256 → treat as move if old location now missing, else second location. |
-| Deletion at source | Location `deleted_at_source`; asset kept, shown with a badge. Nothing deleted in cloud automatically. |
-| Hashing | Stream SHA-256 once per (file ID, size, mtime) tuple; pHash from decoded thumbnail. |
-| Resource control | Worker pool size, CPU priority (BELOW_NORMAL), max RAM, GPU on/off, "only when idle / on AC power", pause. Persisted queue in SQLite → resumes after reboot. |
-| Exclusions | Glob patterns, min size, system folders excluded by default, per-folder "never process faces". |
+| New file, new sha256 | New asset + location, jobs queued |
+| New file, sha256 already known | New location on existing asset (exact duplicate), no reprocessing |
+| Same file_key, new path | Location updated (`moved`), tags/notes untouched |
+| Same file_key, content changed | Old hash saved to `asset_versions`; asset re-hashed; if new hash already belongs to another asset → location moves to that asset |
+| Location gone, source reachable | Location `missing`; asset kept; if no present locations remain, asset shows "missing" badge |
+| Source unreachable | All its locations `unreachable`; nothing removed |
+| User removes a source | Its locations deleted; assets with no remaining locations deleted from the library (DB only), after a confirmation dialog listing the count |
 
-## 3. Mobile (Expo)
-- `expo-media-library` for gallery; **limited-library access on iOS and Android partial access must be handled** — never assume full library. Screenshot auto-import = query new assets in the Screenshots album on app open/background task.
-- Background: `expo-background-task` (OS-scheduled, minimum intervals and execution windows decided by iOS/Android — verify current Expo SDK docs at Phase 5) + foreground catch-up on every app open. Large uploads use background-capable upload (`expo-file-system` upload tasks — verify).
-- Local DB: `expo-sqlite` holding the synced subset (metadata for all assets, thumbnails for recent + pinned collections, originals only when "available offline").
+## 4. Resource control and resume
+- Job runner pool size = user setting (default: physical cores − 1); process priority BELOW_NORMAL; optional "only when idle" (no input for 2 min) and "only on AC power".
+- RAM cap: stage concurrency reduced when the sidecar's working set exceeds the cap; very large images processed with pyvips streaming/shrink-on-load.
+- All state is in SQLite: after a crash or reboot, `running` jobs return to `queued` and scans continue from `resume_token`.
 
-## 4. Sync protocol
-**Pull.** `GET /sync/changes?since=<seq>` returns ordered entries from `change_log` (written by DB triggers on syncable tables). Device applies them in a transaction, stores `next_seq`. Gaps impossible (single sequence). If `since` is older than retention → `410 resync_required` → device does a snapshot pull.
-
-**Push.** Device records local edits in an outbox table `{client_mutation_id (UUIDv7), entity, id, op, base_row_version, fields, created_at}`. `POST /sync/push` applies each mutation in its own savepoint:
-- `client_mutation_id` already applied → return previous result (idempotent; safe to resend after crash).
-- `base_row_version == current` → apply, bump `row_version`, write change_log.
-- Stale → field-level merge: for each field, if server value changed since base and device also changed it → **conflict resolution rule** below; untouched fields merge cleanly.
-
-**Conflict rules [proposed]**
-| Data | Rule |
+## 5. What happens if…
+| Event | Behaviour |
 |---|---|
-| Scalar user fields (title, favourite, review state, taken_at override) | Last-writer-wins by server receive time; losing value kept in `audit_logs` |
-| Tags, collection membership | Set semantics: add/remove operations commute; remove wins over concurrent add only if remove is later |
-| Notes body | No auto-merge: keep both, create a conflict copy note and flag it |
-| AI-generated fields | Never synced up from a device if cloud has `user` origin for the same field |
-| Deletes (hide) | Hide wins over concurrent edit; restore available |
+| Same file event delivered twice | Idempotent: `(file_key,size,mtime)` check + `UNIQUE(asset_id, stage, pipeline_version)` on jobs |
+| App killed mid-scan | Resumes from last completed directory |
+| 10k files renamed at once | Watcher overflow → reconcile; file ids keep tags attached |
+| Corrupt or unsupported file | Asset `failed`/`unsupported` with reason; scan continues |
+| DB file corrupted | `PRAGMA integrity_check` on start; restore offered from `backups/` |
 
-**Assets from devices.** `sync/assets:upsert-local` keyed by `(connection_id, provider_item_id)`; asset matched by `(workspace_id, sha256)`. Device-made embeddings accepted only if `model_id` matches an active cloud model; otherwise the cloud recomputes from the uploaded preview.
-
-## 5. Failure cases (and what happens)
-| Case | Behaviour |
-|---|---|
-| Runs twice / retried push | Idempotent by `client_mutation_id` / `idempotency_key` |
-| Crash mid-batch | Outbox rows remain until acknowledged; per-item savepoints mean partial batches are fine |
-| Offline for weeks | Pull resumes from cursor; if pruned → snapshot resync, outbox still pushed afterwards |
-| Drive unplugged | Locations `unreachable`; search still shows assets (thumbnail cached), "original unavailable" |
-| Token expired | Device keeps working offline; sync pauses with a banner |
-| Device lost | `DELETE /devices/{id}` revokes; refresh token revoked via Supabase admin API |
-| Clock skew | Server receive time is authoritative; devices never send timestamps used for ordering |
-
-## 6. Tests required before Phase 4/5 sign-off
-Two-device conflict matrix per rule above; kill -9 during push; 10k-file rename storm; drive unplug mid-scan; 30-day offline then reconnect; 100k-file initial index wall-clock and RAM on target PC.
+## 6. Tests required for D1 sign-off
+Rename/move storm (10k files), drive unplug mid-scan and reconnect under a new letter, kill -9 during scan and during processing, 100k-file initial index (time + RAM on Neo's PC), read-only fixture folder proving no writes to sources.

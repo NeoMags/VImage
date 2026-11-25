@@ -1,3 +1,2 @@
 # infra
-Local dev: docker-compose with Supabase CLI stack (or a hosted dev project), api, worker, Valkey.
-Deployment notes: docs/02-architecture.md §Deployment.
+No servers in the desktop-only build. Holds CI helpers and the Windows packaging config when Phase D1 starts.
