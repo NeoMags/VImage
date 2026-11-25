@@ -23,6 +23,7 @@ No longer applicable from the first plan: Supabase ($25+/mo), R2, cloud LLM usag
 | NAS / exFAT lack stable file ids | Renames look like delete+add | Re-link by sha256 during reconcile |
 | HEIC decoding in libvips Windows build | HEIC thumbnails missing | Verify libheif in the build; fallback `pillow-heif` |
 | OCR quality on small/mixed-language text | Core D2 feature | Accuracy spike on your screenshots; editable text |
+| RX 580 (Polaris) is an older GPU: DirectML speed unknown, and Ollama/ROCm GPU support likely absent | Slower AI stages | CPU path always works; measure DirectML in D2/D3 spikes; Vulkan llama.cpp for D5 |
 | Large scope even desktop-only | Delivery | Strict phase gates, one phase at a time |
 
 ## 3. Licensing (personal use — all fine; noted for a possible future product)

@@ -32,7 +32,7 @@ class VisionLLM(Protocol):      name: str                       # Ollama only in
 ```
 Each output row stores engine + version; `pipeline_version` lets a model upgrade re-run only the affected stage.
 
-**ONNX Runtime instead of PyTorch/PaddlePaddle runtimes [proposed]:** much smaller install and CPU-friendly; GPU via DirectML execution provider (verify for both models). Models are downloaded on first use into `models/` and SHA-256 verified, so the installer stays small. Accuracy parity of ONNX exports vs originals must be checked in the D2/D3 spikes.
+**ONNX Runtime instead of PyTorch/PaddlePaddle runtimes [proposed]:** much smaller install and CPU-friendly; GPU via DirectML execution provider (verify for both models; see §5). Models are downloaded on first use into `models/` and SHA-256 verified, so the installer stays small. Accuracy parity of ONNX exports vs originals must be checked in the D2/D3 spikes.
 
 ## 3. Job queue (SQLite, inside the sidecar)
 - Table `jobs`; `UNIQUE (asset_id, stage, pipeline_version)` makes enqueueing idempotent (`INSERT … ON CONFLICT DO NOTHING`).
@@ -50,5 +50,15 @@ Each output row stores engine + version; `pipeline_version` lets a model upgrade
 | Ollama not running (D5) | `describe` jobs `skipped`; nothing else affected |
 | OCR wrong | User edits text (origin `user`); re-OCR never overwrites it |
 
-## 5. Costs
+## 5. Hardware plan for Neo's PC (RX 580 8 GB, 32 GB RAM)
+| Workload | Plan | Status |
+|---|---|---|
+| CLIP image embeddings | ONNX Runtime with the **DirectML** execution provider (needs a DX12 GPU; RX 580 reports DX12 feature level 12_0) | U — measure images/s in the D3 spike vs CPU |
+| PaddleOCR | ONNX Runtime DirectML or CPU; OCR models are small, CPU may be competitive | U — measure in D2 spike |
+| Thumbnails, hashing, metadata | CPU (libvips is already fast; GPU not useful) | — |
+| Local vision LLM (D5, optional) | Ollama's AMD acceleration on Windows targets ROCm-supported cards, which likely excludes Polaris (RX 580), so Ollama would run on CPU. A llama.cpp-based runtime with the **Vulkan** backend can use the RX 580. 32 GB RAM lets a small (≈3–8 B parameter, quantized) vision model run on CPU, slowly. | U — verify current Ollama AMD support list and Vulkan options in the D5 spike |
+| CUDA / ROCm-only tools (e.g. PyTorch GPU builds) | Not usable on this card — avoid in the design | Fact (no CUDA per GPU-Z) |
+8 GB VRAM is plenty for CLIP ViT-B/32 and OCR models; it is the limiting factor only for LLMs.
+
+## 6. Costs
 All engines are free/open source; compute is your PC. No per-image charges. Licences: see doc 09.

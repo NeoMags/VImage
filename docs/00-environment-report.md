@@ -16,7 +16,7 @@ Inspected 2026-11-25 in the cloud build container used for this planning work (n
 | Expo CLI / Tauri CLI | **missing** | Installed per-package (`npx expo`, `@tauri-apps/cli`) — no global install needed |
 | Hardware | 4 vCPU, 15 GiB RAM, no GPU | Fine for API/worker dev; local AI benchmarks must run on Neo's target Windows PC |
 
-Not inspected: Neo's Windows machine (GPU, RAM, Windows version). The desktop performance targets in the PRD need that hardware profile — see Q2 in [10-decisions.md](10-decisions.md).
+Neo's PC (from his GPU-Z screenshot and message, 2026-11-25): AMD Radeon RX 580 8 GB GDDR5 (Polaris/Ellesmere, DX12 12_0, DirectML, Vulkan, OpenCL, no CUDA), Adrenalin 26.5.2 driver for Windows 10 64-bit, 32 GB RAM. CPU model not yet known. The desktop performance targets in the PRD need that hardware profile — see Q2 in [10-decisions.md](10-decisions.md).
 
 ## What was actually executed
 - [Cloud plan, now archived] Draft migration loaded into Postgres 17 + pgvector 0.8.7 without errors.
