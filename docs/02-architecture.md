@@ -62,14 +62,15 @@ flowchart TD
 4. Close window → app keeps running in tray if "background indexing" is on; Quit → shell asks sidecar to drain current jobs (≤ 5 s) then stops it.
 5. Sidecar crash → shell restarts it (max 3 times / 5 min) and shows a banner.
 
-## 5. Library folder (default `%LOCALAPPDATA%\ImageVault`, movable — Q3)
+## 5. Library folder (default `%LOCALAPPDATA%\ImageVault\Library`, movable — Q3)
+The per-user installer puts program files in `%LOCALAPPDATA%\ImageVault`; the library is a separate subfolder so program files and data never mix. Verified 2026-11-25 against Tauri's NSIS template: the uninstaller deletes only its own files and a non-recursive `RMDir`, so the library survives uninstall (the optional "delete app data" box only clears `%LOCALAPPDATA%\com.neomags.imagevault`). The shell decides the folder and passes `--library` to the sidecar.
 ```
 library.db (+ -wal, -shm)
 thumbs/ab/cd/<asset_uid>_256.webp …   (sharded by uid)
 previews/…
 models/  (downloaded once, SHA-256 verified)
 backups/library-YYYYMMDD.db           (SQLite online backup API, keep last N)
-logs/
+logs/  sidecar.log (rotated 1 MB × 3), startup.log (launch timeline)
 ```
 
 ## 6. Security & privacy (single user, offline)

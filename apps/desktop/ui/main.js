@@ -22,6 +22,6 @@ async function run() {
     }
   }
   status.className = "bad";
-  status.textContent = "Local engine did not start within 20 s. Check the log in %LOCALAPPDATA%\\ImageVault\\logs.";
+  status.textContent = "Local engine did not start within 20 s. Check the log in %LOCALAPPDATA%\\ImageVault\\Library\\logs.";
 }
 run();

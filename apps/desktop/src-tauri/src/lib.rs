@@ -28,19 +28,22 @@ fn mark(step: &str) {
     TIMELINE.lock().unwrap().push(format!("{ms:>6} ms  {step}"));
 }
 
-/// `<library dir>/logs`, same default as the sidecar (`IV_LIBRARY_DIR`, else
-/// `%LOCALAPPDATA%\\ImageVault`). Known before Tauri starts, so the timeline is written
-/// even if window or webview creation stalls.
+/// `<library dir>/logs`. Known before Tauri starts, so the timeline is written even if window
+/// or webview creation stalls.
 static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-fn library_log_dir() -> Option<PathBuf> {
-    let lib = std::env::var_os("IV_LIBRARY_DIR")
+/// Library folder: `IV_LIBRARY_DIR`, else `%LOCALAPPDATA%\\ImageVault\\Library`.
+/// Deliberately a subfolder: the per-user installer puts program files in
+/// `%LOCALAPPDATA%\\ImageVault`, and library data must never mix with them.
+/// The shell passes this to the sidecar with `--library`, so it is decided in one place.
+fn library_dir() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("IV_LIBRARY_DIR") {
+        return Some(PathBuf::from(dir));
+    }
+    let base = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("ImageVault")))
-        .or_else(|| {
-            std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share/ImageVault"))
-        })?;
-    Some(lib.join("logs"))
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))?;
+    Some(base.join("ImageVault").join("Library"))
 }
 
 fn write_timeline() {
@@ -82,11 +85,17 @@ fn sidecar_path(package_info: &tauri::PackageInfo) -> Result<PathBuf, String> {
         .map_err(|e| format!("resource dir unavailable: {e}"))
 }
 
-fn start_sidecar(package_info: &tauri::PackageInfo, state: Arc<Sidecar>) -> Result<(), String> {
+fn start_sidecar(
+    package_info: &tauri::PackageInfo,
+    library: &std::path::Path,
+    state: Arc<Sidecar>,
+) -> Result<(), String> {
     let path = sidecar_path(package_info)?;
     let token = random_token();
     let mut cmd = Command::new(&path);
-    cmd.env("IV_TOKEN", &token)
+    cmd.arg("--library")
+        .arg(library)
+        .env("IV_TOKEN", &token)
         .env("IV_PARENT_PID", std::process::id().to_string())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -153,14 +162,19 @@ fn get_sidecar_endpoint(state: tauri::State<Arc<Sidecar>>) -> Result<Endpoint, S
 pub fn run() {
     T0.get_or_init(Instant::now);
     mark("app process started");
-    if let Some(dir) = library_log_dir() {
-        let _ = LOG_DIR.set(dir);
+    let library = library_dir();
+    if let Some(dir) = &library {
+        let _ = LOG_DIR.set(dir.join("logs"));
     }
     let context = tauri::generate_context!();
     // Start the engine first: creating the window and webview can take seconds on a cold start
     // (2.8 s measured on Linux/Xvfb), and the engine's own startup runs in parallel with it.
     let sidecar = Arc::new(Sidecar::default());
-    if let Err(e) = start_sidecar(context.package_info(), sidecar.clone()) {
+    let started = match &library {
+        Some(lib) => start_sidecar(context.package_info(), lib, sidecar.clone()),
+        None => Err("cannot determine the library folder (LOCALAPPDATA not set)".to_string()),
+    };
+    if let Err(e) = started {
         mark(&format!("sidecar failed: {e}"));
         *sidecar.error.lock().unwrap() = Some(e);
     }

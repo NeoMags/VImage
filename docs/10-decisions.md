@@ -20,6 +20,6 @@ The spec names Supabase, PostgreSQL, pgvector, RLS, Supabase Auth, Redis, Celery
 | ID | Question | Recommendation | Needed by |
 |---|---|---|---|
 | Q2 | Imports arrive in batches of about 10 GB (≈2.5k–5k photos, estimate). Still missing: total library size and CPU model. (Known: AMD Radeon RX 580 8 GB, 32 GB RAM, Windows 10 64-bit driver.) | — | Before D2 |
-| Q3 | Where the library database + thumbnails live | `%LOCALAPPDATA%\ImageVault` with an option to move it to another drive | D1 |
+| Q3 | Where the library database + thumbnails live | `%LOCALAPPDATA%\ImageVault\Library` (separate from the install folder) with an option to move it to another drive | D1 |
 | Q4 | Face grouping (phase D6): InsightFace models are licensed non-commercial; fine for personal use, but must be replaced if this ever becomes a product | Use only if you still want faces at D6 | D6 |
 | Q5 | Video | Metadata + poster frame only | D1 |

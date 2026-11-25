@@ -95,7 +95,7 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP "ImageVaultInstall"
           Start-Process $inst.FullName -ArgumentList "/S", "/D=$dir" -Wait
           $app = Get-ChildItem $dir -Filter imagevault.exe -Recurse | Select-Object -First 1
-          $lib = Join-Path $env:LOCALAPPDATA "ImageVault/library.db"
+          $lib = Join-Path $env:LOCALAPPDATA "ImageVault/Library/library.db"
           $sw = [Diagnostics.Stopwatch]::StartNew()
           $proc = Start-Process $app.FullName -PassThru
           while (-not (Test-Path $lib) -and $sw.ElapsedMilliseconds -lt 30000) { Start-Sleep -Milliseconds 100 }
@@ -103,7 +103,7 @@ jobs:
           Start-Sleep -Seconds 3
           $side = Get-Process ivsidecar -ErrorAction SilentlyContinue
           "| App launch to library.db created | $libMs ms |`n| Sidecar processes while app runs | $(@($side).Count) |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
-          $timeline = Join-Path $env:LOCALAPPDATA "ImageVault/logs/startup.log"
+          $timeline = Join-Path $env:LOCALAPPDATA "ImageVault/Library/logs/startup.log"
           if (Test-Path $timeline) { "Startup timeline:"; Get-Content $timeline } else { "no startup.log at $timeline" }
           if (-not (Test-Path $lib)) { throw "installed app did not start the sidecar (no library.db)" }
           Stop-Process -Id $proc.Id -Force

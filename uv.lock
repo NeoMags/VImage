@@ -177,6 +177,7 @@ source = { editable = "services/sidecar" }
 dependencies = [
     { name = "fastapi" },
     { name = "pillow-heif" },
+    { name = "pydantic" },
     { name = "pyvips", extra = ["binary"] },
     { name = "sqlite-vec" },
     { name = "uvicorn" },
@@ -195,6 +196,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "pillow-heif", specifier = ">=1.1" },
+    { name = "pydantic", specifier = ">=2.7" },
     { name = "pyvips", extras = ["binary"], specifier = ">=3.0" },
     { name = "sqlite-vec", specifier = "==0.1.9" },
     { name = "uvicorn", specifier = ">=0.30" },
