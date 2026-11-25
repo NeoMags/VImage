@@ -39,7 +39,15 @@ class QueueState(BaseModel):
     paused: bool = False
 
 
-GROUPS: dict[str, type[BaseModel]] = {"resources": Resources, "queue": QueueState}
+class ScanOptions(BaseModel):
+    """Scanner options. Online-only cloud files are skipped by default (decision 3)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    include_online_only: bool = False
+
+
+GROUPS: dict[str, type[BaseModel]] = {"resources": Resources, "queue": QueueState, "scan": ScanOptions}
 
 
 def load(conn: sqlite3.Connection, group: str) -> BaseModel:

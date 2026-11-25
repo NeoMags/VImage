@@ -162,9 +162,12 @@ def test_stages_end_to_end(tmp_path):
         ("img0.jpg", "img3.jpg", "red.png", "copy_of_img0.jpg"), "ready"
     )
     assert status["corrupt.jpg"] == "failed"
-    assert status["notes.txt"] == "unsupported"
+    # unsupported: identified, not hashed, no asset; the location keeps the type
+    assert "notes.txt" not in status
+    assert _job(conn, "notes.txt")[0] == "skipped" and _job(conn, "notes.txt", "hash") is None
+    assert conn.execute("SELECT mime_type FROM file_locations WHERE rel_path = 'notes.txt'").fetchone()[0]
     # exact duplicate: two locations, one asset, processed once
-    assert conn.execute("SELECT count(*) FROM assets").fetchone()[0] == 7
+    assert conn.execute("SELECT count(*) FROM assets").fetchone()[0] == 6
     dup = conn.execute(
         "SELECT count(DISTINCT asset_id) FROM file_locations WHERE rel_path IN ('img0.jpg', 'copy_of_img0.jpg')"
     ).fetchone()[0]

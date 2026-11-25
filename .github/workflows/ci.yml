@@ -27,6 +27,7 @@ jobs:
         working-directory: services/sidecar
         env:
           IV_SCHEMA_N: "20000"
+          IV_SCAN_N: "100000"
           IV_REQUIRE_EXIFTOOL: "1"
         run: uv run pytest -q
 

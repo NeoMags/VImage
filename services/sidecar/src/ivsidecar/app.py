@@ -10,15 +10,30 @@ import time
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import __version__, handlers, probes, settings
+from . import scanner as scan_mod
 from .jobqueue import JobQueue
 
 # Origins used by Tauri 2 webviews (Windows uses http://tauri.localhost).
 TAURI_ORIGINS = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"]
 
 
-def create_app(conn: sqlite3.Connection, token: str, started_at: float, queue: JobQueue | None = None) -> FastAPI:
+class NewSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(min_length=1, max_length=4096)
+    display_name: str | None = Field(default=None, max_length=200)
+
+
+def create_app(
+    conn: sqlite3.Connection,
+    token: str,
+    started_at: float,
+    queue: JobQueue | None = None,
+    scanner: scan_mod.Scanner | None = None,
+) -> FastAPI:
     app = FastAPI(
         title="ImageVault sidecar", version=__version__, docs_url=None, redoc_url=None, openapi_url="/v1/openapi.json"
     )
@@ -85,5 +100,89 @@ def create_app(conn: sqlite3.Connection, token: str, started_at: float, queue: J
     @app.post("/v1/jobs/retry", dependencies=[Depends(require_token)])
     def retry_jobs() -> dict:
         return {"requeued": need_queue().retry_failed()}
+
+    # ---------------------------------------------------------------- sources (B6)
+    def need_scanner() -> scan_mod.Scanner:
+        if scanner is None:
+            raise HTTPException(status_code=503, detail="scanner not running")
+        return scanner
+
+    def start_scan(source_id: int) -> int:
+        opts = settings.load(conn, "scan")
+        try:
+            return need_scanner().start(source_id, include_online_only=opts.include_online_only)
+        except scan_mod.SourceError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+
+    run_keys = (
+        "id",
+        "kind",
+        "status",
+        "files_seen",
+        "files_new",
+        "files_changed",
+        "files_missing",
+        "started_at",
+        "finished_at",
+        "last_error",
+    )
+
+    @app.get("/v1/sources", dependencies=[Depends(require_token)])
+    def list_sources() -> list[dict]:
+        running = set(scanner.running()) if scanner else set()
+        out = []
+        for sid, uid, kind, name, root, status, last_scan, last_error in conn.execute(
+            "SELECT id, uid, kind, display_name, root_path, status, last_scan_at, last_error FROM sources "
+            "WHERE status != 'removed' ORDER BY id"
+        ).fetchall():
+            files = dict(
+                conn.execute(
+                    "SELECT state, count(*) FROM file_locations WHERE source_id = ? GROUP BY state", (sid,)
+                ).fetchall()
+            )
+            run = conn.execute(
+                f"SELECT {', '.join(run_keys)} FROM scan_runs WHERE source_id = ? ORDER BY id DESC LIMIT 1", (sid,)
+            ).fetchone()
+            out.append(
+                {
+                    "id": sid,
+                    "uid": uid,
+                    "kind": kind,
+                    "display_name": name,
+                    "root_path": root,
+                    "status": status,
+                    "last_scan_at": last_scan,
+                    "last_error": last_error,
+                    "files": files,
+                    "scanning": sid in running,
+                    "last_scan": dict(zip(run_keys, run, strict=True)) if run else None,
+                }
+            )
+        return out
+
+    @app.post("/v1/sources", status_code=201, dependencies=[Depends(require_token)])
+    def add_source(body: NewSource) -> dict:
+        try:
+            sid = scan_mod.add_source(conn, body.path, need_scanner().library_dir, body.display_name)
+        except scan_mod.SourceError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        return {"id": sid, "scan_run_id": start_scan(sid)}
+
+    @app.post("/v1/sources/{source_id}/scan", dependencies=[Depends(require_token)])
+    def scan_source(source_id: int) -> dict:
+        return {"scan_run_id": start_scan(source_id)}
+
+    @app.post("/v1/sources/{source_id}/scan/cancel", dependencies=[Depends(require_token)])
+    def cancel_scan(source_id: int) -> dict:
+        return {"cancelled": need_scanner().cancel(source_id)}
+
+    @app.get("/v1/settings/scan", dependencies=[Depends(require_token)])
+    def get_scan_options() -> settings.ScanOptions:
+        return settings.load(conn, "scan")
+
+    @app.put("/v1/settings/scan", dependencies=[Depends(require_token)])
+    def put_scan_options(body: settings.ScanOptions) -> settings.ScanOptions:
+        settings.save(conn, "scan", body)
+        return body
 
     return app

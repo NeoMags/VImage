@@ -20,6 +20,7 @@ import uvicorn
 from . import __version__, db, logs
 from .app import create_app
 from .jobqueue import JobQueue
+from .scanner import Scanner
 from .watchdog import watch_parent
 
 log = logging.getLogger("ivsidecar")
@@ -67,7 +68,8 @@ def main(argv: list[str] | None = None) -> int:
     port = sock.getsockname()[1]
 
     queue = JobQueue(args.library)
-    config = uvicorn.Config(create_app(conn, token, started, queue), log_level="warning", access_log=False)
+    scanner = Scanner(args.library, on_batch=queue.wake)
+    config = uvicorn.Config(create_app(conn, token, started, queue, scanner), log_level="warning", access_log=False)
     server = uvicorn.Server(config)
     print(
         json.dumps(
@@ -76,9 +78,11 @@ def main(argv: list[str] | None = None) -> int:
         flush=True,
     )
     queue.start()  # after "ready": jobs left over from last time must not delay the window
+    scanner.resume_interrupted()
     try:
         server.run(sockets=[sock])
     finally:
+        scanner.stop()
         queue.stop()
     return 0
 
