@@ -1,6 +1,6 @@
 # 03 · Local database schema and ERD
 
-DDL: [`services/sidecar/db/migrations/0001_initial.sql`](../services/sidecar/db/migrations/0001_initial.sql) — 34 tables + 4 virtual tables (2 FTS5, 2 sqlite-vec). Single user, so no organizations/workspaces/memberships/RLS; everything else from spec §18 has a local equivalent.
+DDL: [`services/sidecar/src/ivsidecar/migrations/0001_initial.sql`](../services/sidecar/src/ivsidecar/migrations/0001_initial.sql) — 34 tables + 4 virtual tables (2 FTS5, 2 sqlite-vec). Single user, so no organizations/workspaces/memberships/RLS; everything else from spec §18 has a local equivalent.
 
 ## 1. Spec table → local table
 | Spec (§18) | Local | Note |
@@ -67,7 +67,7 @@ Not drawn: `settings`, `saved_searches`, `concepts`, `relationships` (polymorphi
 - **Migrations:** numbered SQL files, applied in order, tracked with `PRAGMA user_version`; DB backed up automatically before each migration.
 
 ## 4. Test results (executed 2026-11-25, build container: 4 vCPU, no GPU — not Neo's PC)
-`python -I services/sidecar/db/tests/test_schema.py 100000` with SQLite 3.53.1, sqlite-vec 0.1.9: **13/13 checks passed** — duplicate sha256 rejected; duplicate file location rejected; face identity without confirmation rejected; out-of-range region rejected; audit log update/delete blocked; duplicate "delete" decision rejected; FTS word match; trigram partial-phone match; vector/pHash rows removed with asset; CLIP KNN correct; pHash exact match found.
+`python -I services/sidecar/tests/test_schema.py 100000` with SQLite 3.53.1, sqlite-vec 0.1.9: **13/13 checks passed** — duplicate sha256 rejected; duplicate file location rejected; face identity without confirmation rejected; out-of-range region rejected; audit log update/delete blocked; duplicate "delete" decision rejected; FTS word match; trigram partial-phone match; vector/pHash rows removed with asset; CLIP KNN correct; pHash exact match found.
 
 | Measurement @100k assets | Result |
 |---|---|

@@ -21,7 +21,7 @@ No longer applicable from the first plan: Supabase ($25+/mo), R2, cloud LLM usag
 | sqlite-vec brute-force search beyond ~300k images | Slower similar search | Measured 90 ms @100k (container); options at scale: int8/binary quantization, prefilter, or ANN library |
 | Cloud-client placeholder files getting downloaded during scans | Bandwidth/disk surprise | Skip offline-attribute files by default (verify per client) |
 | NAS / exFAT lack stable file ids | Renames look like delete+add | Re-link by sha256 during reconcile |
-| HEIC decoding in libvips Windows build | HEIC thumbnails missing | Verify libheif in the build; fallback `pillow-heif` |
+| HEIC decoding in libvips Windows build | HEIC thumbnails missing | **Confirmed 2026-11-25:** pyvips-binary 8.18.7 has no working HEVC. HEIC now decoded with `pillow-heif` 1.9.0 (libheif 1.23.7); packaged self-test passes on Linux, Windows checked in CI |
 | OCR quality on small/mixed-language text | Core D2 feature | Accuracy spike on your screenshots; editable text |
 | RX 580 (Polaris) is an older GPU: DirectML speed unknown, and Ollama/ROCm GPU support likely absent | Slower AI stages | CPU path always works; measure DirectML in D2/D3 spikes; Vulkan llama.cpp for D5 |
 | Large scope even desktop-only | Delivery | Strict phase gates, one phase at a time |
@@ -35,6 +35,7 @@ No longer applicable from the first plan: Supabase ($25+/mo), R2, cloud LLM usag
 | Redis 8 | RSALv2/SSPLv1/AGPLv3 | No longer used | **V** |
 | PaddleOCR, Tesseract, ONNX Runtime | Apache-2.0 / Apache-2.0 / MIT | — | U |
 | libvips | LGPL-2.1+ | ship as DLL + notice | U |
+| pillow-heif binary wheels | BSD-3 source; **wheels GPLv2** (bundle x265 encoder), libheif/libde265 LGPLv3 | fine for personal use; before any distribution, ship a decode-only build without x265 | **V** (LICENSES_bundled.txt in the 1.9.0 wheel) |
 | libheif / HEVC | LGPL; HEVC patents | Personal use low concern; check before distribution | U |
 | ExifTool | Artistic/GPL dual | run as separate process | U |
 | Ollama models | per model | check each model's licence | U |

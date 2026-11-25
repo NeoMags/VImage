@@ -1,0 +1,122 @@
+name: Windows build
+
+# Spike B2: proves the Python sidecar can be packaged for Windows, bundled into the
+# Tauri installer, installed, started by the app, and stopped when the app dies.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install uv==0.11.32
+      - run: uv sync --locked
+
+      - name: Sidecar tests on Windows
+        working-directory: services/sidecar
+        run: uv run pytest -q
+
+      - name: Package sidecar (PyInstaller one-folder)
+        working-directory: services/sidecar
+        run: uv run pyinstaller --noconfirm --log-level WARN --distpath dist --workpath build packaging/ivsidecar.spec
+
+      - name: Add ExifTool (Windows build from exiftool.org)
+        working-directory: services/sidecar
+        env:
+          # Pinned for reproducible builds. Windows zips moved from exiftool.org to SourceForge;
+          # the SHA-256 comes from https://exiftool.org/checksums-13.64.txt
+          EXIFTOOL_VERSION: "13.64"
+          EXIFTOOL_SHA256: "72c29c44d1e860eebcaefa71692d979af9858fe9a6d7d791a5e7f1dac77804af"
+        run: |
+          $v = $env:EXIFTOOL_VERSION
+          Invoke-WebRequest -UseBasicParsing -UserAgent "curl/8" -MaximumRedirection 10 `
+            "https://sourceforge.net/projects/exiftool/files/exiftool-${v}_64.zip/download" -OutFile exiftool.zip
+          $hash = (Get-FileHash exiftool.zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:EXIFTOOL_SHA256) { throw "exiftool.zip SHA-256 mismatch: $hash" }
+          Expand-Archive exiftool.zip -DestinationPath exiftool-unzipped
+          $src = Get-ChildItem exiftool-unzipped -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Force dist/ivsidecar/exiftool | Out-Null
+          Copy-Item -Recurse "$($src.FullName)/*" dist/ivsidecar/exiftool/
+          Rename-Item "dist/ivsidecar/exiftool/exiftool(-k).exe" exiftool.exe
+          "exiftool $v added (sha256 verified)"
+
+      - name: Smoke-test packaged sidecar
+        working-directory: services/sidecar
+        run: |
+          $env:IV_TOKEN = "ci-token-0123456789abcdef"
+          $lib = Join-Path $env:RUNNER_TEMP "ivlib"
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          $psi = New-Object Diagnostics.ProcessStartInfo "dist/ivsidecar/ivsidecar.exe", "--library `"$lib`""
+          $psi.RedirectStandardOutput = $true; $psi.UseShellExecute = $false
+          $p = [Diagnostics.Process]::Start($psi)
+          $ready = $p.StandardOutput.ReadLine() | ConvertFrom-Json
+          $coldMs = $sw.ElapsedMilliseconds
+          $health = Invoke-RestMethod -Uri "http://127.0.0.1:$($ready.port)/v1/health" -Headers @{ Authorization = "Bearer $env:IV_TOKEN" }
+          $p.Kill()
+          $health | ConvertTo-Json -Depth 6 | Tee-Object -FilePath health.json
+          $size = "{0:N1}" -f ((Get-ChildItem dist/ivsidecar -Recurse | Measure-Object Length -Sum).Sum / 1MB)
+          "| Sidecar folder size | $size MB |`n| Process start to ready (cold) | $coldMs ms |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          if (-not $health.vips.ok -or -not $health.vips.thumbnail_selftest.ok) { throw "libvips not working in packaged build" }
+          if ($health.db.schema_version -lt 1) { throw "migration not applied" }
+          if (-not $health.exiftool.ok) { throw "ExifTool not working in packaged build" }
+          if (-not $health.heif.ok) { throw "HEIC decoding (pillow-heif) not working in packaged build" }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - name: Build installer (Tauri, NSIS)
+        working-directory: apps/desktop
+        run: |
+          npm ci
+          npx tauri build
+
+      - name: Install silently, launch, check sidecar lifecycle
+        run: |
+          $inst = Get-ChildItem apps/desktop/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          "| Installer size | {0:N1} MB |" -f ($inst.Length / 1MB) | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          $dir = Join-Path $env:RUNNER_TEMP "ImageVaultInstall"
+          Start-Process $inst.FullName -ArgumentList "/S", "/D=$dir" -Wait
+          $app = Get-ChildItem $dir -Filter imagevault.exe -Recurse | Select-Object -First 1
+          $lib = Join-Path $env:LOCALAPPDATA "ImageVault/library.db"
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          $proc = Start-Process $app.FullName -PassThru
+          while (-not (Test-Path $lib) -and $sw.ElapsedMilliseconds -lt 30000) { Start-Sleep -Milliseconds 100 }
+          $libMs = $sw.ElapsedMilliseconds
+          Start-Sleep -Seconds 3
+          $side = Get-Process ivsidecar -ErrorAction SilentlyContinue
+          "| App launch to library.db created | $libMs ms |`n| Sidecar processes while app runs | $(@($side).Count) |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          $timeline = Join-Path $env:LOCALAPPDATA "ImageVault/logs/startup.log"
+          if (Test-Path $timeline) { "Startup timeline:"; Get-Content $timeline } else { "no startup.log at $timeline" }
+          if (-not (Test-Path $lib)) { throw "installed app did not start the sidecar (no library.db)" }
+          Stop-Process -Id $proc.Id -Force
+          Start-Sleep -Seconds 5
+          $left = @(Get-Process ivsidecar -ErrorAction SilentlyContinue).Count
+          "| Sidecar processes 5 s after app force-killed | $left |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          if ($left -ne 0) { throw "sidecar left running after app was killed" }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: imagevault-windows-spike
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+            services/sidecar/health.json
+          if-no-files-found: warn
