@@ -129,6 +129,35 @@ jobs:
           $timeline = Join-Path $env:LOCALAPPDATA "ImageVault/Library/logs/startup.log"
           if (Test-Path $timeline) { "Startup timeline:"; Get-Content $timeline } else { "no startup.log at $timeline" }
           if (-not (Test-Path $lib)) { throw "installed app did not start the sidecar (no library.db)" }
+
+          # B10: engine crash -> the shell restarts it (new process, new port) within 5 s
+          # the engine is the ivsidecar.exe started by the app (job workers are its children)
+          $old = Get-CimInstance Win32_Process -Filter "Name='ivsidecar.exe'" | Where-Object ParentProcessId -eq $proc.Id | Select-Object -First 1
+          if (-not $old) { throw "no engine process found under the app" }
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          Stop-Process -Id $old.ProcessId -Force
+          while (-not (Select-String -Path $timeline -Pattern "restart 1;" -Quiet -ErrorAction SilentlyContinue) -and $sw.ElapsedMilliseconds -lt 10000) { Start-Sleep -Milliseconds 100 }
+          $restartMs = $sw.ElapsedMilliseconds
+          "| Engine killed to engine ready again | $restartMs ms |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          if ($restartMs -ge 5000) { Get-Content $timeline; throw "engine was not restarted within 5 s" }
+
+          # B10: closing the window stops the engine cleanly (POST /v1/shutdown), no kill needed
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          $null = $proc.CloseMainWindow()
+          if (-not $proc.WaitForExit(10000)) { throw "app did not exit within 10 s of closing its window" }
+          Start-Sleep -Milliseconds 500
+          $quitMs = $sw.ElapsedMilliseconds
+          $left = @(Get-Process ivsidecar -ErrorAction SilentlyContinue).Count
+          "| Window closed to app + engine gone | $quitMs ms (engines left: $left) |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          Get-Content $timeline
+          if ($left -ne 0) { throw "engine left running after a normal quit" }
+          if (-not (Select-String -Path $timeline -Pattern "engine stopped cleanly" -Quiet)) { throw "engine was killed, not stopped cleanly" }
+
+          # Shell force-killed (crash): the engine notices its parent is gone and exits by itself
+          $proc = Start-Process $app.FullName -PassThru
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          while (-not (Get-Process ivsidecar -ErrorAction SilentlyContinue) -and $sw.ElapsedMilliseconds -lt 30000) { Start-Sleep -Milliseconds 100 }
+          Start-Sleep -Seconds 3
           Stop-Process -Id $proc.Id -Force
           Start-Sleep -Seconds 5
           $left = @(Get-Process ivsidecar -ErrorAction SilentlyContinue).Count

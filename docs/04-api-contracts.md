@@ -72,4 +72,15 @@ B8a status (2026-11-25): rows marked **Built** exist. B8b (same day): every erro
 Filter fields/operators are a closed allow-list, validated by Pydantic and Zod from one JSON Schema; no SQL fragments cross the API. Ranking: reciprocal-rank fusion of FTS5 bm25 and vector distance, after filters.
 
 ## 4. Tauri commands (Rust shell)
-`pick_folder()`, `reveal_in_explorer(path)`, `open_with_default_app(path)`, `get_sidecar_endpoint() → {port, token}`, `set_autostart(bool)`, `tray_set_status(text)`. File paths passed to `reveal`/`open` must belong to a known `file_location` (checked by the sidecar first) so the UI can't be used to open arbitrary paths.
+Built in B10 (`apps/desktop/src-tauri`):
+
+| What the UI calls | Where | Notes |
+|---|---|---|
+| `get_sidecar_endpoint() → {port, token}` | own command | Errors with "engine not ready yet" while starting/restarting, or the give-up message |
+| `get_app_paths() → {library, logs, thumbs}` | own command | For Settings and "see the log in ..." messages |
+| Folder picker | `tauri-plugin-dialog`, `open({directory: true})` | Path is then sent to `POST /v1/sources`, which validates it |
+| Show in Explorer | `tauri-plugin-opener`, `revealItemInDir(path)` | Path comes from `POST /v1/assets/{id}/reveal` (a known location). Only `allow-reveal-item-in-dir` is granted: no open, no shell |
+| Thumbnails | asset protocol (`convertFileSrc`) | Scope set at startup to `<library>/thumbs/**` only |
+| Events `engine-restarted`, `engine-failed` | Tauri events | After `engine-restarted`, fetch a new endpoint (new port and token) |
+
+Engine lifecycle: crash → restart after 1 s, 2 s, 5 s; a 4th crash within 60 s gives up (`engine-failed`). Quit → `POST /v1/shutdown` (stop taking jobs, finish running ones, close the DB), kill after 5 s. Every step is logged to `<library>/logs/startup.log`. Later (D4): `set_autostart(bool)`, `tray_set_status(text)`, open with default app.

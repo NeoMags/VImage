@@ -8,8 +8,9 @@ import sqlite3
 import sys
 import threading
 import time
+from collections.abc import Callable
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -37,6 +38,7 @@ def create_app(
     queue: JobQueue | None = None,
     scanner: scan_mod.Scanner | None = None,
     watcher: FolderWatcher | None = None,
+    on_shutdown: Callable[[], None] | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="ImageVault sidecar", version=__version__, docs_url=None, redoc_url=None, openapi_url="/v1/openapi.json"
@@ -83,6 +85,15 @@ def create_app(
             "stages": probes.stages_info(),
             "exiftool": probes.exiftool_info(),
         }
+
+    @app.post("/v1/shutdown", dependencies=[Depends(require_token)])
+    def shutdown(tasks: BackgroundTasks) -> schemas.ShuttingDown:
+        """Clean quit (B10): stop taking jobs, let running ones finish, close the database, exit.
+        The shell waits up to 5 s for the process to end, then kills it."""
+        if on_shutdown is None:
+            raise HTTPException(status_code=503, detail="shutdown is not available in this mode")
+        tasks.add_task(on_shutdown)  # after the reply is sent
+        return schemas.ShuttingDown(stopping=True)
 
     @app.get("/v1/settings/resources", dependencies=[Depends(require_token)])
     def get_resources() -> settings.Resources:
