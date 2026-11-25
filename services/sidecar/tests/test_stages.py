@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from fixtures_gen import Case, build, scene
+from fixtures_gen import Case, build, run_exiftool, scene
 from PIL import Image
 
 from ivsidecar.probes import find_exiftool
@@ -167,11 +167,8 @@ def test_raw_preview_path_uses_embedded_jpeg(tmp_path, exiftool):
     thumb = tmp_path / "t.jpg"
     Image.fromarray(scene(160, 120, 50)).save(thumb)
     exe = find_exiftool()
-    import subprocess
 
-    subprocess.run(
-        [exe, "-q", "-charset", "filename=utf8", "-overwrite_original", f"-ThumbnailImage<={thumb}", str(f)], check=True
-    )
+    run_exiftool(exe, "-q", "-overwrite_original", f"-ThumbnailImage<={thumb}", str(f))
     img, w, h = _load_raw_preview(f, exiftool, orientation=6)
     assert (w, h) == (120, 160)  # embedded 160x120 preview, rotated by orientation 6
 

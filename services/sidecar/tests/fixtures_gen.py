@@ -53,9 +53,14 @@ def _exif(path: Path, *assignments: str) -> None:
     exe = find_exiftool()
     if not exe:
         raise RuntimeError("exiftool is required to build fixtures")
-    subprocess.run(
-        [exe, "-q", "-charset", "filename=utf8", "-overwrite_original", "-n", *assignments, str(path)], check=True
-    )
+    run_exiftool(exe, "-q", "-overwrite_original", "-n", *assignments, str(path))
+
+
+def run_exiftool(exe: str, *args: str) -> None:
+    """Writes fixtures. Arguments go via a UTF-8 argfile on stdin: on Windows, exiftool.exe
+    gets command-line arguments in the ANSI code page, which mangles non-ASCII file names."""
+    argfile = "\n".join(["-charset", "filename=utf8", *args]) + "\n"
+    subprocess.run([exe, "-@", "-"], input=argfile.encode("utf-8"), check=True)
 
 
 def build(dest: Path) -> list[Case]:  # noqa: PLR0915 - a flat list of fixtures reads best

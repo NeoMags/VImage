@@ -118,9 +118,13 @@ class ExifTool:
         if not self.exe:
             raise ExifToolError("exiftool not found")
         kwargs = {"creationflags": _CREATE_NO_WINDOW} if os.name == "nt" else {}
+        # Arguments go through an argfile on stdin, as UTF-8: on Windows, exiftool.exe (Perl)
+        # receives command-line arguments in the ANSI code page, which mangles non-ASCII names.
+        args = "\n".join(["-b", f"-{tag}", "-charset", "filename=utf8", str(path)]) + "\n"
         try:
             res = subprocess.run(
-                [self.exe, "-b", f"-{tag}", "-charset", "filename=utf8", str(path)],
+                [self.exe, "-@", "-"],
+                input=args.encode("utf-8"),
                 capture_output=True,
                 timeout=self.timeout_s,
                 check=False,
