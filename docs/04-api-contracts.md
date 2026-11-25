@@ -11,12 +11,12 @@ There is one API: the sidecar's localhost API, consumed by the Tauri UI. FastAPI
 - Thumbnails are *not* served over HTTP: responses carry `thumb_path` relative to the cache dir; the UI loads it through Tauri's asset protocol.
 
 ## 2. Endpoints
-B8a status (2026-11-25): rows marked **Built** exist. Errors are still FastAPI's `{detail}` until B8b switches every endpoint to the problem+json format in §1. User edits are written to `audit_log`; title, tags, notes and file paths are kept in the full-text index (`asset_fts`) for D2 search.
+B8a status (2026-11-25): rows marked **Built** exist. B8b (same day): every error, from every route, is problem+json as in §1 (`application/problem+json`; validation errors add `errors[{loc, msg}]`; unexpected errors return code `internal` without a stack trace). User edits are written to `audit_log`; title, tags, notes and file paths are kept in the full-text index (`asset_fts`) for D2 search.
 
 ### Phase D1
 | Method & path | Purpose |
 |---|---|
-| `GET /health` | `{status, version, db_version, queue: {queued, running, failed}}` |
+| `GET /health` | **Built.** `{status, version, db_version, queue: {queued, running, failed}}` plus engine probes (libvips, HEIC, ExifTool, stages) |
 | `GET/POST /sources` · `PATCH/DELETE /sources/{id}` | Sources CRUD; delete removes records only |
 | `POST /sources/{id}/scan` · `/pause` · `/resume` | Manual scan / pause |
 | `GET /assets` | **Built (B8a).** Filters: `kind` (repeatable), `status` (repeatable), `mime`, `from`/`to` (dates, inclusive), `source`, `tag` (repeatable, all must match), `collection`, `favorite`, `reviewed`, `availability=present|missing|unreachable`, `min_w`, `min_h`, `hidden` (default false: hidden photos are left out). `sort=date|indexed|size|position` (`position` = the user's order inside `collection`), `order=desc|asc`. `date` = date taken, else the file's modified date, else when added. Keyset pagination: `limit` ≤ 500, opaque `cursor` tied to its sort. |
@@ -29,11 +29,11 @@ B8a status (2026-11-25): rows marked **Built** exist. Errors are still FastAPI's
 | `GET/POST/PATCH/DELETE /tags` · `POST /tags/{id}/merge {into}` | **Built.** `GET ?q=` prefix search with counts; names are matched case- and accent-insensitively (`slug`); delete returns how many photos lost the tag |
 | `GET/POST/PATCH/DELETE /collections` · `POST/DELETE /collections/{id}/assets {ids}` · `PUT /collections/{id}/assets/{asset_id}/position {position}` | **Built.** Manual collections, nested via `parent_id` (moves that create a loop: 409); deleting removes nested collections too, never photos. New photos are appended; reorder by sending a position between the neighbours' |
 | `GET/POST/PATCH/DELETE /assets/{id}/notes` | **Built.** Plain text ≤ 20,000 chars |
-| `GET /jobs?status=&stage=` · `POST /jobs/{id}/retry` · `POST /queue/pause|resume` | |
+| `GET /jobs?status=&stage=&limit=&before_id=` · `POST /jobs/{id}/retry` · `POST /jobs/pause|resume|retry` · `GET /jobs/stats` | **Built (B8b).** Newest first, each with the file's `path` and `last_error`; page with `before_id` = previous `next_before_id`. Retry one: only failed, dead or skipped jobs (409 otherwise). `POST /jobs/retry` retries all failed |
 | `GET/PUT /settings/resources` | `{threads, max_ram_mb, only_when_idle, only_on_ac, gpu}` |
-| `GET /stats` | Dashboard counters |
+| `GET /stats` | **Built.** Photos: total, by status, by kind, hidden, favourites, present / missing / unreachable; unsupported files; tags; collections; sources by status; last scan; jobs by status; queue state; `db_version` vs `db_latest` |
 | `POST /library/backup` · `POST /library/export` | Snapshot DB; export JSON/CSV |
-| `WS /events` | `asset.updated, job.updated, scan.progress, source.status` |
+| `WS /events` | **Built.** Auth: subprotocols `["ivsidecar", "bearer.<token>"]` (browsers cannot set headers on a WebSocket); Origin must be a Tauri origin when present; otherwise the handshake is refused (1008/403). First message `{type: "hello", flush_ms: 250}`, then at most one `{type: "batch", events: [...]}` per 250 ms: `asset.updated {ids}` (or `{all: true}`), `job.updated {count}`, `scan.progress {source_id, run_id, kind, status, files_*}`, `source.status {source_id, status}`, `tags.updated`, `collections.updated`, `resync` (window fell behind). Events are hints: refetch what is shown; after a reconnect refetch everything. A 10k-file scan sent 3 messages in the CI container |
 
 ### Phase D2–D3
 | Method & path | Purpose |

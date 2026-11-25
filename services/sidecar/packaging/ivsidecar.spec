@@ -6,7 +6,7 @@ import glob
 import os
 import sysconfig
 
-from PyInstaller.utils.hooks import collect_all, collect_data_files
+from PyInstaller.utils.hooks import collect_all, collect_submodules, collect_data_files
 
 site = sysconfig.get_paths()["purelib"]
 
@@ -24,6 +24,9 @@ for path in glob.glob(os.path.join(site, "_libvips*")):
 # delvewheel-style pillow_heif.libs on Windows).
 for path in glob.glob(os.path.join(site, "pillow_heif.libs", "*")):
     binaries.append((path, "pillow_heif.libs"))
+
+# uvicorn picks its protocol layers by import string at run time (WebSockets for /v1/events)
+hiddenimports += collect_submodules("uvicorn") + collect_submodules("websockets")
 
 for pkg in ("sqlite_vec", "pyvips", "pillow_heif"):
     d, b, h = collect_all(pkg)

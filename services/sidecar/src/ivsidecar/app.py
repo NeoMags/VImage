@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import __version__, handlers, probes, settings
+from . import __version__, api_status, handlers, probes, settings
 from . import scanner as scan_mod
 from .api_library import build_router
 from .jobqueue import JobQueue
@@ -54,13 +54,25 @@ def create_app(
             raise HTTPException(status_code=401, detail="invalid or missing token")
 
     db_lock = threading.RLock()  # one shared connection: request threads take turns (api_library)
+    api_status.install_error_handlers(app)
     app.include_router(build_router(conn, db_lock), dependencies=[Depends(require_token)])
+    status_routes, ws_routes = api_status.build_router(conn, db_lock, token, TAURI_ORIGINS, queue)
+    app.include_router(status_routes, dependencies=[Depends(require_token)])
+    app.include_router(ws_routes)  # checks the token itself (subprotocol)
 
     @app.get("/v1/health", dependencies=[Depends(require_token)])
     def health() -> dict:
+        with db_lock:
+            jobs = handlers.stats(conn)["jobs"]
         return {
             "status": "ok",
             "version": __version__,
+            "db_version": conn.execute("PRAGMA user_version").fetchone()[0],
+            "queue": {
+                "queued": jobs.get("queued", 0),
+                "running": jobs.get("running", 0),
+                "failed": jobs.get("failed", 0) + jobs.get("dead", 0),
+            },
             "uptime_s": round(time.time() - started_at, 1),
             "python": sys.version.split()[0],
             "platform": platform.platform(),

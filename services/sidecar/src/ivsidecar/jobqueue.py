@@ -20,7 +20,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import db, handlers, power, settings
+from . import db, events, handlers, power, settings
 from .worker import StageFn, worker_main
 
 log = logging.getLogger("ivsidecar.jobs")
@@ -312,10 +312,20 @@ class JobQueue:
                     c.execute("UPDATE jobs SET status = 'queued', started_at = NULL WHERE id = ?", (jid,))
                 else:
                     raise ValueError(f"unknown outcome {outcome}")
+                aid = job["asset_id"]
+                if aid is None and job["location_id"] is not None:
+                    row = c.execute(
+                        "SELECT asset_id FROM file_locations WHERE id = ?", (job["location_id"],)
+                    ).fetchone()
+                    aid = row[0] if row else None
                 c.execute("COMMIT")
             except BaseException:
                 c.execute("ROLLBACK")
                 raise
+        if outcome != "interrupted":
+            events.bus.job_updated()
+            if aid is not None:
+                events.bus.asset_updated(aid)
 
     @staticmethod
     def _give_up(c: sqlite3.Connection, job: sqlite3.Row, status: str, error: str) -> None:
