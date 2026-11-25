@@ -9,6 +9,7 @@ import type {
   TaskProgressEvent,
 } from "@imagevault/shared-types";
 import {
+  keepPreviousData,
   type QueryClient,
   useInfiniteQuery,
   useMutation,
@@ -115,6 +116,18 @@ export function useAssetMonths(filter: AssetFilter) {
   return useQuery({
     queryKey: keys.assets.months(filter),
     queryFn: () => unwrap(api.GET("/v1/assets:months", { params: { query: filter } })),
+  });
+}
+
+/** Counts per filter option for the filter panel (B15). Keeps the last counts while new ones load. */
+export function useAssetFacets(filter: AssetFilter, tagQ = "", enabled = true) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.assets.facets(filter, tagQ),
+    queryFn: () =>
+      unwrap(api.GET("/v1/assets:facets", { params: { query: { ...filter, ...(tagQ ? { tag_q: tagQ } : {}) } } })),
+    placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

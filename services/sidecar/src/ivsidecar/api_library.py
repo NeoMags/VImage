@@ -42,7 +42,7 @@ def asset_filters(
     hidden: bool = False,
     kind: Annotated[list[str] | None, Query()] = None,
     status: Annotated[list[str] | None, Query()] = None,
-    mime: str | None = None,
+    mime: Annotated[list[str] | None, Query()] = None,
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
     source: int | None = None,
@@ -53,6 +53,10 @@ def asset_filters(
     availability: Literal["present", "missing", "unreachable"] | None = None,
     min_w: int | None = Query(None, ge=1),
     min_h: int | None = Query(None, ge=1),
+    max_w: int | None = Query(None, ge=1),
+    max_h: int | None = Query(None, ge=1),
+    min_bytes: int | None = Query(None, ge=0),
+    max_bytes: int | None = Query(None, ge=0),
 ) -> dict:
     """The asset filters shared by GET /assets and GET /assets:months."""
     return {k: v for k, v in locals().items()}
@@ -136,6 +140,16 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
     def asset_months(filters: Annotated[dict, Depends(asset_filters)]) -> S.AssetMonths:
         """Assets per month of their date (newest first), with the same filters as GET /assets."""
         return run(lib.asset_months, **filters)
+
+    @r.get("/assets:facets")
+    def asset_facets(
+        filters: Annotated[dict, Depends(asset_filters)],
+        tag_q: str | None = Query(None, max_length=100),
+    ) -> S.AssetFacets:
+        """How many assets match each filter option, with the same filters as GET /assets. Each section
+        ignores its own selection (except tags, which must all match), so it shows what ticking an
+        option would give."""
+        return run(lib.asset_facets, tag_q=tag_q, **filters)
 
     @r.post("/assets:bulk", response_model_exclude_none=True)
     def bulk(body: BulkBody) -> S.BulkResult:

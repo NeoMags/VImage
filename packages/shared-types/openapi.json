@@ -281,6 +281,92 @@
         "title": "AssetDetail",
         "type": "object"
       },
+      "AssetFacets": {
+        "additionalProperties": false,
+        "properties": {
+          "availability": {
+            "items": {
+              "$ref": "#/components/schemas/FacetValue"
+            },
+            "title": "Availability",
+            "type": "array"
+          },
+          "collection": {
+            "items": {
+              "$ref": "#/components/schemas/FacetId"
+            },
+            "title": "Collection",
+            "type": "array"
+          },
+          "date": {
+            "$ref": "#/components/schemas/DateBounds"
+          },
+          "favorite": {
+            "$ref": "#/components/schemas/YesNo"
+          },
+          "format": {
+            "items": {
+              "$ref": "#/components/schemas/FacetValue"
+            },
+            "title": "Format",
+            "type": "array"
+          },
+          "kind": {
+            "items": {
+              "$ref": "#/components/schemas/FacetValue"
+            },
+            "title": "Kind",
+            "type": "array"
+          },
+          "reviewed": {
+            "$ref": "#/components/schemas/YesNo"
+          },
+          "size": {
+            "$ref": "#/components/schemas/SizeBounds"
+          },
+          "source": {
+            "items": {
+              "$ref": "#/components/schemas/FacetId"
+            },
+            "title": "Source",
+            "type": "array"
+          },
+          "status": {
+            "items": {
+              "$ref": "#/components/schemas/FacetValue"
+            },
+            "title": "Status",
+            "type": "array"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/FacetTag"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "kind",
+          "format",
+          "status",
+          "availability",
+          "source",
+          "collection",
+          "tags",
+          "favorite",
+          "reviewed",
+          "date",
+          "size"
+        ],
+        "title": "AssetFacets",
+        "type": "object"
+      },
       "AssetJob": {
         "additionalProperties": false,
         "properties": {
@@ -1366,6 +1452,39 @@
         "title": "CollectionRef",
         "type": "object"
       },
+      "DateBounds": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          }
+        },
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "DateBounds",
+        "type": "object"
+      },
       "Derivative": {
         "additionalProperties": false,
         "properties": {
@@ -1476,6 +1595,68 @@
           "format"
         ],
         "title": "Exported",
+        "type": "object"
+      },
+      "FacetId": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "count"
+        ],
+        "title": "FacetId",
+        "type": "object"
+      },
+      "FacetTag": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "count"
+        ],
+        "title": "FacetTag",
+        "type": "object"
+      },
+      "FacetValue": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "count"
+        ],
+        "title": "FacetValue",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -2680,6 +2861,39 @@
         "title": "ShuttingDown",
         "type": "object"
       },
+      "SizeBounds": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          }
+        },
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "SizeBounds",
+        "type": "object"
+      },
       "Source": {
         "additionalProperties": false,
         "properties": {
@@ -3001,6 +3215,25 @@
         ],
         "title": "WithOrigin",
         "type": "object"
+      },
+      "YesNo": {
+        "additionalProperties": false,
+        "properties": {
+          "no": {
+            "title": "No",
+            "type": "integer"
+          },
+          "yes": {
+            "title": "Yes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "yes",
+          "no"
+        ],
+        "title": "YesNo",
+        "type": "object"
       }
     }
   },
@@ -3128,7 +3361,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -3307,6 +3543,74 @@
                 }
               ],
               "title": "Min H"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_w",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max W"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_h",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max H"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_bytes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Bytes"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_bytes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Bytes"
             }
           },
           {
@@ -4039,11 +4343,28 @@
         "summary": "Bulk"
       }
     },
-    "/v1/assets:months": {
+    "/v1/assets:facets": {
       "get": {
-        "description": "Assets per month of their date (newest first), with the same filters as GET /assets.",
-        "operationId": "asset_months_v1_assets_months_get",
+        "description": "How many assets match each filter option, with the same filters as GET /assets. Each section\nignores its own selection (except tags, which must all match), so it shows what ticking an\noption would give.",
+        "operationId": "asset_facets_v1_assets_facets_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "tag_q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag Q"
+            }
+          },
           {
             "in": "query",
             "name": "hidden",
@@ -4099,7 +4420,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -4278,6 +4602,422 @@
                 }
               ],
               "title": "Min H"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_w",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max W"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_h",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max H"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_bytes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Bytes"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_bytes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Bytes"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetFacets"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Asset Facets"
+      }
+    },
+    "/v1/assets:months": {
+      "get": {
+        "description": "Assets per month of their date (newest first), with the same filters as GET /assets.",
+        "operationId": "asset_months_v1_assets_months_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "hidden",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Hidden",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mime",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mime"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "collection",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Collection"
+            }
+          },
+          {
+            "in": "query",
+            "name": "favorite",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Favorite"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reviewed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reviewed"
+            }
+          },
+          {
+            "in": "query",
+            "name": "availability",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "present",
+                    "missing",
+                    "unreachable"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Availability"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_w",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min W"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_h",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min H"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_w",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max W"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_h",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max H"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_bytes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Bytes"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_bytes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Bytes"
             }
           },
           {

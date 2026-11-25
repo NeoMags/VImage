@@ -10,6 +10,7 @@ export type AssetSummary = S["AssetSummary"];
 export type AssetPage = S["AssetPage"];
 export type AssetDetail = S["AssetDetail"];
 export type AssetMonths = S["AssetMonths"];
+export type AssetFacets = S["AssetFacets"];
 export type MonthCount = S["MonthCount"];
 export type AssetPatch = S["AssetPatch"];
 export type BulkBody = S["BulkBody"];

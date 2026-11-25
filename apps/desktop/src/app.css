@@ -175,3 +175,28 @@ button.link:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
 .confirm p { margin: 0; }
 .needs-restore { max-width: 760px; }
 .needs-restore p { margin: 0; }
+
+/* Filters (B15) */
+.assets-body { flex: 1; min-height: 0; display: flex; gap: var(--iv-space-3); }
+.assets-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.filter-chips { margin: 0; align-items: center; }
+.filter-panel { flex: none; width: 260px; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--iv-border); border-radius: var(--iv-radius); background: var(--iv-surface); }
+.filter-head { display: flex; align-items: center; gap: var(--iv-space-2); padding: var(--iv-space-2) var(--iv-space-3); border-bottom: 1px solid var(--iv-border); }
+.filter-head .spacer { flex: 1; }
+.filter-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--iv-space-2) var(--iv-space-3); display: flex; flex-direction: column; gap: var(--iv-space-3); transition: opacity 0.15s; }
+.filter-body.stale { opacity: 0.7; }
+.filter-section { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.filter-section legend { padding: 0; margin-bottom: 4px; font-size: var(--iv-text-sm); font-weight: 600; color: var(--iv-text-muted); text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 6px; }
+.filter-section legend .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--iv-accent); }
+.filter-section select, .filter-section .inline-input { width: 100%; min-width: 0; }
+.filter-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+.filter-list .check { display: flex; align-items: center; gap: 6px; font-size: var(--iv-text-sm); }
+.filter-panel .count { margin-left: auto; color: var(--iv-text-muted); font-variant-numeric: tabular-nums; font-size: var(--iv-text-sm); }
+.filter-section .range { display: flex; align-items: center; gap: 6px; }
+.filter-section .range input[type="date"] { flex: 1; min-width: 0; }
+.num-field { flex: 1; min-width: 0; }
+.num-field input { width: 100%; padding: 2px 6px; border: 1px solid var(--iv-border); border-radius: var(--iv-radius); background: var(--iv-surface); color: var(--iv-text); }
+.segmented.tri { margin-left: 0; display: flex; }
+.segmented.tri button { flex: 1; display: inline-flex; justify-content: center; gap: 6px; }
+.segmented.tri button[aria-checked="true"] { background: var(--iv-accent); color: var(--iv-accent-text); }
+.segmented.tri button[aria-checked="true"] .count { color: inherit; }

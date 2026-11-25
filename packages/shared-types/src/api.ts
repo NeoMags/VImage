@@ -199,6 +199,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/assets:facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Asset Facets
+         * @description How many assets match each filter option, with the same filters as GET /assets. Each section
+         *     ignores its own selection (except tags, which must all match), so it shows what ticking an
+         *     option would give.
+         */
+        get: operations["asset_facets_v1_assets_facets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assets:months": {
         parameters: {
             query?: never;
@@ -775,6 +797,29 @@ export interface components {
             /** Width */
             width: number | null;
         };
+        /** AssetFacets */
+        AssetFacets: {
+            /** Availability */
+            availability: components["schemas"]["FacetValue"][];
+            /** Collection */
+            collection: components["schemas"]["FacetId"][];
+            date: components["schemas"]["DateBounds"];
+            favorite: components["schemas"]["YesNo"];
+            /** Format */
+            format: components["schemas"]["FacetValue"][];
+            /** Kind */
+            kind: components["schemas"]["FacetValue"][];
+            reviewed: components["schemas"]["YesNo"];
+            size: components["schemas"]["SizeBounds"];
+            /** Source */
+            source: components["schemas"]["FacetId"][];
+            /** Status */
+            status: components["schemas"]["FacetValue"][];
+            /** Tags */
+            tags: components["schemas"]["FacetTag"][];
+            /** Total */
+            total: number;
+        };
         /** AssetJob */
         AssetJob: {
             /** Attempts */
@@ -1059,6 +1104,13 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** DateBounds */
+        DateBounds: {
+            /** Max */
+            max: string | null;
+            /** Min */
+            min: string | null;
+        };
         /** Derivative */
         Derivative: {
             /** Height */
@@ -1101,6 +1153,29 @@ export interface components {
             path: string;
             /** Photos */
             photos: number;
+        };
+        /** FacetId */
+        FacetId: {
+            /** Count */
+            count: number;
+            /** Id */
+            id: number;
+        };
+        /** FacetTag */
+        FacetTag: {
+            /** Count */
+            count: number;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+        };
+        /** FacetValue */
+        FacetValue: {
+            /** Count */
+            count: number;
+            /** Value */
+            value: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1509,6 +1584,13 @@ export interface components {
             /** Stopping */
             stopping: boolean;
         };
+        /** SizeBounds */
+        SizeBounds: {
+            /** Max */
+            max: number | null;
+            /** Min */
+            min: number | null;
+        };
         /** Source */
         Source: {
             /** Display Name */
@@ -1610,6 +1692,13 @@ export interface components {
             /** Value */
             value: string | null;
         };
+        /** YesNo */
+        YesNo: {
+            /** No */
+            no: number;
+            /** Yes */
+            yes: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -1629,7 +1718,7 @@ export interface operations {
                 hidden?: boolean;
                 kind?: string[] | null;
                 status?: string[] | null;
-                mime?: string | null;
+                mime?: string[] | null;
                 from?: string | null;
                 to?: string | null;
                 source?: number | null;
@@ -1640,6 +1729,10 @@ export interface operations {
                 availability?: ("present" | "missing" | "unreachable") | null;
                 min_w?: number | null;
                 min_h?: number | null;
+                max_w?: number | null;
+                max_h?: number | null;
+                min_bytes?: number | null;
+                max_bytes?: number | null;
             };
             header?: {
                 authorization?: string;
@@ -2115,13 +2208,14 @@ export interface operations {
             };
         };
     };
-    asset_months_v1_assets_months_get: {
+    asset_facets_v1_assets_facets_get: {
         parameters: {
             query?: {
+                tag_q?: string | null;
                 hidden?: boolean;
                 kind?: string[] | null;
                 status?: string[] | null;
-                mime?: string | null;
+                mime?: string[] | null;
                 from?: string | null;
                 to?: string | null;
                 source?: number | null;
@@ -2132,6 +2226,60 @@ export interface operations {
                 availability?: ("present" | "missing" | "unreachable") | null;
                 min_w?: number | null;
                 min_h?: number | null;
+                max_w?: number | null;
+                max_h?: number | null;
+                min_bytes?: number | null;
+                max_bytes?: number | null;
+            };
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetFacets"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    asset_months_v1_assets_months_get: {
+        parameters: {
+            query?: {
+                hidden?: boolean;
+                kind?: string[] | null;
+                status?: string[] | null;
+                mime?: string[] | null;
+                from?: string | null;
+                to?: string | null;
+                source?: number | null;
+                tag?: number[] | null;
+                collection?: number | null;
+                favorite?: boolean | null;
+                reviewed?: boolean | null;
+                availability?: ("present" | "missing" | "unreachable") | null;
+                min_w?: number | null;
+                min_h?: number | null;
+                max_w?: number | null;
+                max_h?: number | null;
+                min_bytes?: number | null;
+                max_bytes?: number | null;
             };
             header?: {
                 authorization?: string;

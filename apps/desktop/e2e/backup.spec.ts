@@ -35,7 +35,9 @@ test("backup: back up, change a tag, restore it, export", async ({ page, request
   await page.goto(`/?port=${engine.port}&token=${engine.token}#/sources`);
   await page.getByRole("button", { name: "+ Add folder" }).click();
   await expect(page.getByRole("row", { name: /iv-e2e-photos/ })).toContainText("3", { timeout: 30_000 });
-  const first = (await (await request.get(api("/v1/assets?limit=1"), { headers })).json()).items[0].id as number;
+  const items = async () => (await (await request.get(api("/v1/assets?limit=1"), { headers })).json()).items as { id: number }[];
+  await expect.poll(async () => (await items()).length, { timeout: 30_000 }).toBe(1); // files found → photos indexed
+  const first = (await items())[0]!.id;
   await request.post(api(`/v1/assets/${first}/tags`), { headers, data: { names: ["kept"] } });
 
   await page.getByRole("link", { name: "Settings" }).click();

@@ -15,6 +15,7 @@ export const keys = {
     all: ["assets"] as const,
     list: (q: Omit<AssetQuery, "cursor">) => ["assets", q] as const,
     months: (f: AssetFilter) => ["assets", "months", f] as const,
+    facets: (f: AssetFilter, tagQ: string) => ["assets", "facets", f, tagQ] as const,
   },
   asset: {
     all: ["asset"] as const,

@@ -184,6 +184,76 @@ def test_month_counts_match_the_list_for_every_filter(api):
     assert client.get("/v1/assets:months").status_code == 401
 
 
+def _facet_seed(conn, client):
+    _seed(conn, 60)
+    conn.execute("UPDATE assets SET mime_type = 'image/png', byte_size = 50000 WHERE id % 4 = 0")
+    conn.execute("UPDATE assets SET width = 4000, height = 3000 WHERE id % 5 = 0")
+    conn.execute("UPDATE assets SET is_favorite = 1 WHERE id % 3 = 0")
+    conn.execute("UPDATE assets SET is_hidden = 1 WHERE id = 7")
+    for name, ids in (("Beach", [1, 2, 3, 4, 5, 6]), ("Sunset", [2, 4, 6, 8]), ("Cat_%", [9])):
+        r = client.post("/v1/assets:bulk", headers=AUTH, json={"ids": ids, "add_tags": [name]})
+        assert r.status_code == 200, r.text
+    coll = client.post("/v1/collections", headers=AUTH, json={"name": "Trip"}).json()["id"]
+    client.post(f"/v1/collections/{coll}/assets", headers=AUTH, json={"ids": [1, 2, 3, 20, 7]})
+    tags = {t["name"]: t["id"] for t in _get(client, "/v1/tags")}
+    return tags, coll
+
+
+def test_facets_agree_with_the_list_for_every_filter(api):
+    """B15 acceptance: every number in the filter panel is what the list returns when that option is ticked."""
+    conn, client = api
+    tags, coll = _facet_seed(conn, client)
+    cases = (
+        {},
+        {"kind": "screenshot"},
+        {"mime": ["image/png", "image/jpeg"]},
+        {"mime": "image/png", "favorite": "true"},
+        {"tag": [tags["Beach"]]},
+        {"tag": [tags["Beach"], tags["Sunset"]]},
+        {"collection": coll},
+        {"min_w": 1000, "min_h": 1000},
+        {"max_w": 500},
+        {"min_bytes": 10000, "max_bytes": 60000},
+        {"from": "2024-01-01", "to": "2024-01-15", "reviewed": "false"},
+        {"hidden": "true"},
+    )
+    for params in cases:
+        f = _get(client, "/v1/assets:facets", **params)
+        assert f["total"] == len(_walk(client, **params)) == _get(client, "/v1/assets:months", **params)["total"]
+        # ticking an option = the list with that option set (each facet ignores its own selection)
+        for facet, key in (
+            ("kind", "kind"),
+            ("format", "mime"),
+            ("status", "status"),
+            ("availability", "availability"),
+        ):
+            for opt in f[facet]:
+                assert opt["count"] == len(_walk(client, **{**params, key: opt["value"]})), (params, facet, opt)
+        for opt in f["source"]:
+            assert opt["count"] == len(_walk(client, **{**params, "source": opt["id"]}))
+        for opt in f["collection"]:
+            assert opt["count"] == len(_walk(client, **{**params, "collection": opt["id"]}))
+        for opt in f["tags"]:  # tags must all match: ticking one more narrows
+            assert opt["count"] == len(_walk(client, **{**params, "tag": [*params.get("tag", []), opt["id"]]}))
+        for facet in ("favorite", "reviewed"):
+            assert f[facet]["yes"] == len(_walk(client, **{**params, facet: "true"}))
+            assert f[facet]["no"] == len(_walk(client, **{**params, facet: "false"}))
+
+    f = _get(client, "/v1/assets:facets", kind="screenshot")
+    assert {o["value"] for o in f["kind"]} == {"image", "screenshot"}  # the other kind stays visible
+    assert f["total"] == 6
+    f = _get(client, "/v1/assets:facets")
+    assert f["size"] == {"min": 1000, "max": 50000}
+    assert f["date"]["min"] <= f["date"]["max"]
+    assert [t["name"] for t in f["tags"]] == ["Beach", "Sunset", "Cat_%"]
+    assert [t["name"] for t in _get(client, "/v1/assets:facets", tag_q="sun")["tags"]] == ["Sunset"]
+    assert [t["name"] for t in _get(client, "/v1/assets:facets", tag_q="%")["tags"]] == ["Cat_%"]  # literal
+    assert _get(client, "/v1/assets:facets", tag_q="a%")["tags"] == []  # not a wildcard
+    for bad in ({"min_bytes": -1}, {"max_w": 0}, {"availability": "nope"}, {"tag_q": "x" * 101}):
+        assert client.get("/v1/assets:facets", headers=AUTH, params=bad).status_code == 422, bad
+    assert client.get("/v1/assets:facets").status_code == 401
+
+
 def test_pagination_is_stable_while_photos_arrive(api):
     conn, client = api
     _seed(conn, 200)
@@ -417,11 +487,18 @@ def test_100k_list_and_detail_timings(api):
     deep_ms, _ = timed(lambda: _get(client, "/v1/assets", limit=60, cursor=cursor))
     filt_ms, _ = timed(lambda: _get(client, "/v1/assets", limit=60, kind="screenshot"))
     detail_ms, _ = timed(lambda: _get(client, f"/v1/assets/{n // 2}"))
+    facets_ms, _ = timed(lambda: _get(client, "/v1/assets:facets"), reps=3)
+    facets_f_ms, _ = timed(lambda: _get(client, "/v1/assets:facets", kind="screenshot", favorite="false"), reps=3)
     print(
         f"\n{n} photos: first page {first_ms:.1f} ms, page 500 {deep_ms:.1f} ms, "
-        f"screenshots filter {filt_ms:.1f} ms, detail {detail_ms:.1f} ms (HTTP round trip incl.)"
+        f"screenshots filter {filt_ms:.1f} ms, detail {detail_ms:.1f} ms, "
+        f"facets {facets_ms:.1f} ms / filtered {facets_f_ms:.1f} ms (HTTP round trip incl.)"
     )
     assert max(first_ms, deep_ms, filt_ms) < 250 and detail_ms < 250  # regression guard; targets in the plan
+    # B15 plan budget: 300 ms, met on Linux (~150-220 ms). The hosted Windows runner measured
+    # 265/368 ms for the same queries, so it gets a looser regression guard until B21 measures
+    # Neo's own PC (see PR #16).
+    assert max(facets_ms, facets_f_ms) < (600 if os.name == "nt" else 300)
 
 
 def test_cursor_is_opaque_but_tamper_safe(api):

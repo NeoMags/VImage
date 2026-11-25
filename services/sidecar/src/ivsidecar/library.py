@@ -143,7 +143,7 @@ def _asset_filters(
     hidden: bool = False,
     kind: list[str] | None = None,
     status: list[str] | None = None,
-    mime: str | None = None,
+    mime: list[str] | str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
     source: int | None = None,
@@ -154,6 +154,10 @@ def _asset_filters(
     availability: str | None = None,
     min_w: int | None = None,
     min_h: int | None = None,
+    max_w: int | None = None,
+    max_h: int | None = None,
+    min_bytes: int | None = None,
+    max_bytes: int | None = None,
 ) -> tuple[list[str], list]:
     """WHERE clauses shared by the asset list and the month counts, so both always agree."""
     where, args = ["a.is_hidden = ?"], [int(hidden)]
@@ -164,8 +168,9 @@ def _asset_filters(
         where.append(f"a.status IN ({','.join('?' for _ in status)})")
         args += status
     if mime:
-        where.append("a.mime_type = ?")
-        args.append(mime)
+        mimes = [mime] if isinstance(mime, str) else mime
+        where.append(f"a.mime_type IN ({','.join('?' for _ in mimes)})")
+        args += mimes
     if date_from:
         where.append("a.sort_date >= ?")
         args.append(date_from.isoformat())
@@ -195,9 +200,16 @@ def _asset_filters(
     if min_w:
         where.append("a.width >= ?")
         args.append(min_w)
-    if min_h:
-        where.append("a.height >= ?")
-        args.append(min_h)
+    for col, op, v in (
+        ("a.height", ">=", min_h),
+        ("a.width", "<=", max_w),
+        ("a.height", "<=", max_h),
+        ("a.byte_size", ">=", min_bytes),
+        ("a.byte_size", "<=", max_bytes),
+    ):
+        if v is not None:
+            where.append(f"{col} {op} ?")
+            args.append(v)
     return where, args
 
 
@@ -208,20 +220,7 @@ def list_assets(
     cursor: str | None = None,
     sort: str = "date",
     order: str = "desc",
-    hidden: bool = False,
-    kind: list[str] | None = None,
-    status: list[str] | None = None,
-    mime: str | None = None,
-    date_from: date | None = None,
-    date_to: date | None = None,
-    source: int | None = None,
-    tag: list[int] | None = None,
-    collection: int | None = None,
-    favorite: bool | None = None,
-    reviewed: bool | None = None,
-    availability: str | None = None,
-    min_w: int | None = None,
-    min_h: int | None = None,
+    **filters,
 ) -> dict:
     if sort not in (*SORTS, "position"):
         raise Invalid(f"sort must be one of {', '.join(SORTS)}, position")
@@ -229,6 +228,7 @@ def list_assets(
         raise Invalid("order must be asc or desc")
     if not 1 <= limit <= 500:
         raise Invalid("limit must be 1-500")
+    collection = filters.get("collection")
     if sort == "position":  # the user's order inside a collection
         if collection is None:
             raise Invalid("sort=position needs a collection")
@@ -238,22 +238,7 @@ def list_assets(
         )
     else:
         key = SORTS[sort]
-    where, args = _asset_filters(
-        hidden=hidden,
-        kind=kind,
-        status=status,
-        mime=mime,
-        date_from=date_from,
-        date_to=date_to,
-        source=source,
-        tag=tag,
-        collection=collection,
-        favorite=favorite,
-        reviewed=reviewed,
-        availability=availability,
-        min_w=min_w,
-        min_h=min_h,
-    )
+    where, args = _asset_filters(**filters)
     if cursor:
         value, last_id = _decode_cursor(cursor, sort, order)
         where.append(f"({key}, a.id) {'<' if order == 'desc' else '>'} (?, ?)")
@@ -285,6 +270,143 @@ def asset_months(conn: sqlite3.Connection, **filters) -> dict:
     ).fetchall()
     months = [{"month": m, "count": n} for m, n in rows]
     return {"total": sum(x["count"] for x in months), "months": months}
+
+
+FACET_TAGS = 50
+# Which filter arguments each facet ignores, so its counts say what ticking an option would give
+# (decision 1 of the B15 plan). Tags are not ignored: several tags must all match, so ticking
+# another tag narrows the current result.
+_FACET_OWN = {
+    "kind": ("kind",),
+    "format": ("mime",),
+    "status": ("status",),
+    "source": ("source",),
+    "collection": ("collection",),
+    "favorite": ("favorite",),
+    "reviewed": ("reviewed",),
+    "availability": ("availability",),
+    "date": ("date_from", "date_to"),
+    "size": ("min_bytes", "max_bytes"),
+}
+
+
+def asset_facets(conn: sqlite3.Connection, tag_q: str | None = None, **filters) -> dict:
+    """Counts per filter option for the filter panel, with the same filters as list_assets."""
+
+    def where(facet: str | None = None) -> tuple[str, list]:
+        own = _FACET_OWN.get(facet, ())
+        w, a = _asset_filters(**{k: v for k, v in filters.items() if k not in own})
+        return " AND ".join(w), a
+
+    # The simple facets (columns of assets) come from ONE scan without their own filters: each
+    # combination of values is counted, then each facet adds up the combinations that pass the
+    # other simple filters. Measured on 100k assets: ~75 ms whatever is selected, vs ~70 ms per
+    # extra facet with its own selection when each runs its own GROUP BY.
+    simple = {"kind": "kind", "format": "mime", "status": "status", "favorite": "favorite", "reviewed": "reviewed"}
+    wanted = {}
+    for f, key in simple.items():
+        v = filters.get(key)
+        if v in (None, []):
+            continue
+        if key in ("favorite", "reviewed"):
+            wanted[f] = {int(v)}
+        else:
+            wanted[f] = set([v] if isinstance(v, str) else v)
+    base, base_args = _asset_filters(**{k: v for k, v in filters.items() if k not in simple.values()})
+    combos = conn.execute(
+        f"SELECT a.kind, a.mime_type, a.status, a.is_favorite, a.is_reviewed, count(*) FROM assets a "
+        f"WHERE {' AND '.join(base)} "
+        "GROUP BY 1, 2, 3, 4, 5",
+        base_args,
+    ).fetchall()
+    counts: dict[str, dict] = {f: {} for f in simple}
+    total = 0
+    for *vals, n in combos:
+        row = dict(zip(simple, vals, strict=True))
+        fails = [f for f, ok in wanted.items() if row[f] not in ok]
+        if not fails:
+            total += n
+        for f in simple:
+            if not fails or fails == [f]:  # passes every other simple filter
+                counts[f][row[f]] = counts[f].get(row[f], 0) + n
+
+    def ranked(facet: str) -> list[dict]:
+        items = [(v, n) for v, n in counts[facet].items() if v is not None]
+        return [{"value": v, "count": n} for v, n in sorted(items, key=lambda x: (-x[1], x[0]))]
+
+    def yes_no(facet: str) -> dict:
+        return {"yes": counts[facet].get(1, 0), "no": counts[facet].get(0, 0)}
+
+    def grouped(facet: str, expr: str) -> list[dict]:
+        w, a = where(facet)
+        rows = conn.execute(
+            f"SELECT {expr} AS v, count(*) FROM assets a WHERE {w} GROUP BY v ORDER BY count(*) DESC, v", a
+        ).fetchall()
+        return [{"value": v, "count": n} for v, n in rows if v is not None]
+
+    w, a = where()
+    tag_sql, tag_args = "", list(a)
+    if tag_q:  # matched on the slug, like GET /tags; % and _ are literal
+        tag_sql = "AND t.slug LIKE ? ESCAPE '\\'"
+        tag_args.append("%" + slugify(tag_q).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
+    # Cheap exact shortcuts: no tags or collections at all means nothing to count.
+    has_tags, has_colls = conn.execute(
+        "SELECT EXISTS (SELECT 1 FROM asset_tags WHERE rejected = 0), EXISTS (SELECT 1 FROM collection_assets)"
+    ).fetchone()
+    tags = (
+        []
+        if not has_tags
+        else conn.execute(
+            f"SELECT t.id, t.name, count(*) FROM assets a JOIN asset_tags x ON x.asset_id = a.id AND x.rejected = 0 "
+            f"JOIN tags t ON t.id = x.tag_id WHERE {w} {tag_sql} GROUP BY t.id ORDER BY count(*) DESC, t.name LIMIT ?",
+            (*tag_args, FACET_TAGS),
+        ).fetchall()
+    )
+    sw, sa = where("source")
+    sources = conn.execute(
+        f"SELECT l.source_id, count(DISTINCT a.id) FROM assets a JOIN file_locations l ON l.asset_id = a.id "
+        f"WHERE {sw} GROUP BY l.source_id ORDER BY l.source_id",
+        sa,
+    ).fetchall()
+    cw, ca = where("collection")
+    colls = (
+        []
+        if not has_colls
+        else conn.execute(
+            f"SELECT c.collection_id, count(*) FROM assets a JOIN collection_assets c ON c.asset_id = a.id "
+            f"WHERE {cw} GROUP BY c.collection_id ORDER BY c.collection_id",
+            ca,
+        ).fetchall()
+    )
+    date_set = bool(filters.get("date_from") or filters.get("date_to"))
+    size_set = filters.get("min_bytes") is not None or filters.get("max_bytes") is not None
+    if not date_set and not size_set:  # both bounds ignore only their own filter: one query
+        d_min, d_max, z_min, z_max = conn.execute(
+            f"SELECT min(a.sort_date), max(a.sort_date), min(a.byte_size), max(a.byte_size) FROM assets a WHERE {w}", a
+        ).fetchone()
+    else:
+        dw, da = where("date")
+        d_min, d_max = conn.execute(
+            f"SELECT min(a.sort_date), max(a.sort_date) FROM assets a WHERE {dw}", da
+        ).fetchone()
+        zw, za = where("size")
+        z_min, z_max = conn.execute(
+            f"SELECT min(a.byte_size), max(a.byte_size) FROM assets a WHERE {zw}", za
+        ).fetchone()
+    return {
+        "total": total,
+        "kind": ranked("kind"),
+        "format": ranked("format"),
+        "status": ranked("status"),
+        "availability": grouped("availability", AVAILABILITY_SQL),
+        "source": [{"id": i, "count": n} for i, n in sources],
+        "collection": [{"id": i, "count": n} for i, n in colls],
+        "tags": [{"id": i, "name": nm, "count": n} for i, nm, n in tags],
+        "favorite": yes_no("favorite"),
+        "reviewed": yes_no("reviewed"),
+        "date": {"min": d_min[:10] if d_min else None, "max": d_max[:10] if d_max else None},
+        "size": {"min": z_min, "max": z_max},
+    }
 
 
 # --------------------------------------------------------------------------- detail
