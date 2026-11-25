@@ -19,7 +19,9 @@ conn = db.open_library(library)
 thumbs = library / "thumbs" / "perf"
 thumbs.mkdir(parents=True, exist_ok=True)
 for i in range(48):
-    Image.new("RGB", (256, 192), ((i * 37) % 256, (i * 91) % 256, (i * 53) % 256)).save(thumbs / f"{i}.webp", quality=70)
+    Image.new("RGB", (256, 192), ((i * 37) % 256, (i * 91) % 256, (i * 53) % 256)).save(
+        thumbs / f"{i}.webp", quality=70
+    )
 
 rng = random.Random(7)
 conn.execute(
