@@ -173,7 +173,11 @@ class JobQueue:
         return n
 
     def state(self) -> dict:
-        return {"paused": self.paused, "gate": self.gate, "slots": self._threads(), "busy": self._busy}
+        # No locks here: the API must answer even while the slots are busy writing results.
+        # (Python locks are not fair; a status request waiting on the queue lock could starve.)
+        cached = self._res_cache
+        slots = cached[1].threads if cached else None
+        return {"paused": self.paused, "gate": self.gate, "slots": slots, "busy": self._busy}
 
     # ------------------------------------------------------------------ helpers
     def _resources(self) -> settings.Resources:
