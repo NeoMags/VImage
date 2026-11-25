@@ -130,7 +130,13 @@ jobs:
           $timeline = Join-Path $env:LOCALAPPDATA "ImageVault/Library/logs/startup.log"
           if (Test-Path $timeline) { "Startup timeline:"; Get-Content $timeline } else { "no startup.log at $timeline" }
           if (-not (Test-Path $lib)) { throw "installed app did not start the sidecar (no library.db)" }
-          if (-not (Select-String -Path $timeline -Pattern "page load Finished" -Quiet)) { throw "the UI page did not load" }
+          # WebView2 starts cold on a CI runner (the B10 run showed ~9 s before the window existed), so
+          # wait for the page instead of checking once.
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          while (-not (Select-String -Path $timeline -Pattern "page load Finished" -Quiet -ErrorAction SilentlyContinue) -and $sw.ElapsedMilliseconds -lt 60000) { Start-Sleep -Milliseconds 250 }
+          $loaded = Select-String -Path $timeline -Pattern "^\s*(\d+) ms  page load Finished" | Select-Object -First 1
+          if (-not $loaded) { Get-Content $timeline; throw "the UI page did not load within 60 s" }
+          "| App launch to UI page loaded | $($loaded.Matches[0].Groups[1].Value) ms |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
 
           # B10: engine crash -> the shell restarts it (new process, new port) within 5 s
           # the engine is the ivsidecar.exe started by the app (job workers are its children)
