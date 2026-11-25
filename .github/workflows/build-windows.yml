@@ -88,6 +88,7 @@ jobs:
           $qr = $q | ConvertFrom-Json
           "| Queue self-test (1 file, stages 1-4, spawned worker) | $($qr.ms) ms |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
           if (-not $qr.ok) { throw "job queue self-test failed in packaged build: $q" }
+          if ($qr.observer -ne "WindowsApiObserver") { throw "folder watcher fell back to $($qr.observer) in packaged build" }
 
       - uses: actions/setup-node@v4
         with:

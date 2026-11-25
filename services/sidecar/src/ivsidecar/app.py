@@ -8,13 +8,14 @@ import sqlite3
 import sys
 import time
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import __version__, handlers, probes, settings
 from . import scanner as scan_mod
 from .jobqueue import JobQueue
+from .watcher import FolderWatcher
 
 # Origins used by Tauri 2 webviews (Windows uses http://tauri.localhost).
 TAURI_ORIGINS = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"]
@@ -33,6 +34,7 @@ def create_app(
     started_at: float,
     queue: JobQueue | None = None,
     scanner: scan_mod.Scanner | None = None,
+    watcher: FolderWatcher | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="ImageVault sidecar", version=__version__, docs_url=None, redoc_url=None, openapi_url="/v1/openapi.json"
@@ -130,6 +132,7 @@ def create_app(
     @app.get("/v1/sources", dependencies=[Depends(require_token)])
     def list_sources() -> list[dict]:
         running = set(scanner.running()) if scanner else set()
+        watching = set(watcher.watched()) if watcher else set()
         out = []
         for sid, uid, kind, name, root, status, last_scan, last_error in conn.execute(
             "SELECT id, uid, kind, display_name, root_path, status, last_scan_at, last_error FROM sources "
@@ -155,6 +158,7 @@ def create_app(
                     "last_error": last_error,
                     "files": files,
                     "scanning": sid in running,
+                    "watching": sid in watching,
                     "last_scan": dict(zip(run_keys, run, strict=True)) if run else None,
                 }
             )
@@ -166,7 +170,10 @@ def create_app(
             sid = scan_mod.add_source(conn, body.path, need_scanner().library_dir, body.display_name)
         except scan_mod.SourceError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
-        return {"id": sid, "scan_run_id": start_scan(sid)}
+        run_id = start_scan(sid)
+        if watcher:
+            watcher.add(sid)
+        return {"id": sid, "scan_run_id": run_id}
 
     @app.post("/v1/sources/{source_id}/scan", dependencies=[Depends(require_token)])
     def scan_source(source_id: int) -> dict:
@@ -175,6 +182,31 @@ def create_app(
     @app.post("/v1/sources/{source_id}/scan/cancel", dependencies=[Depends(require_token)])
     def cancel_scan(source_id: int) -> dict:
         return {"cancelled": need_scanner().cancel(source_id)}
+
+    @app.get("/v1/sources/{source_id}/removal", dependencies=[Depends(require_token)])
+    def removal_preview(source_id: int) -> dict:
+        try:
+            return scan_mod.removal_preview(conn, source_id)
+        except scan_mod.SourceError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+
+    @app.delete("/v1/sources/{source_id}", dependencies=[Depends(require_token)])
+    def remove_source(source_id: int, confirm: int = Query(ge=0)) -> dict:
+        """confirm = the assets_only_here count from GET .../removal that the user agreed to."""
+        sc = need_scanner()
+        try:
+            scan_mod.removal_preview(conn, source_id)
+        except scan_mod.SourceError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        if watcher:
+            watcher.remove(source_id)
+        sc.forget(source_id)
+        try:
+            return scan_mod.remove_source(conn, source_id, sc.library_dir, confirm)
+        except scan_mod.SourceError as e:
+            if watcher:  # not removed after all: keep watching it
+                watcher.add(source_id)
+            raise HTTPException(status_code=409, detail=str(e)) from e
 
     @app.get("/v1/settings/scan", dependencies=[Depends(require_token)])
     def get_scan_options() -> settings.ScanOptions:
