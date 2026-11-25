@@ -1,4 +1,4 @@
-import type { LiveEvent, ScanProgressEvent, ServerMessage, Source } from "@imagevault/shared-types";
+import type { LiveEvent, ScanProgressEvent, ServerMessage, Source, TaskProgressEvent } from "@imagevault/shared-types";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
 import type { Endpoint } from "./client";
@@ -7,7 +7,7 @@ import { keys } from "./keys";
 // ------------------------------------------------------------------------------ parsing
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 const isInt = (v: unknown): v is number => Number.isInteger(v);
-const SIMPLE = new Set(["tags.updated", "collections.updated", "resync"]);
+const SIMPLE = new Set(["tags.updated", "collections.updated", "resync", "library.restored"]);
 
 function parseEvent(e: unknown): LiveEvent | null {
   if (!isObj(e) || typeof e.type !== "string") return null;
@@ -23,6 +23,8 @@ function parseEvent(e: unknown): LiveEvent | null {
         : null;
     case "source.status":
       return isInt(e.source_id) && typeof e.status === "string" ? (e as unknown as LiveEvent) : null;
+    case "task.progress":
+      return typeof e.task === "string" && isInt(e.done) && isInt(e.total) ? (e as unknown as LiveEvent) : null;
     default:
       return SIMPLE.has(e.type) ? (e as unknown as LiveEvent) : null;
   }
@@ -53,18 +55,23 @@ export interface RefreshPlan {
   invalidate: QueryKey[];
   scans: ScanProgressEvent[];
   sourceStatus: { source_id: number; status: Source["status"] }[];
+  tasks: TaskProgressEvent[];
 }
 
 /** Pure: which cached queries a batch of events makes stale. Events are hints; the engine is the truth. */
 export function planFor(events: LiveEvent[]): RefreshPlan {
-  const plan: RefreshPlan = { all: false, invalidate: [], scans: [], sourceStatus: [] };
+  const plan: RefreshPlan = { all: false, invalidate: [], scans: [], sourceStatus: [], tasks: [] };
   const add = (k: QueryKey) => {
     if (!plan.invalidate.some((x) => JSON.stringify(x) === JSON.stringify(k))) plan.invalidate.push(k);
   };
   for (const e of events) {
     switch (e.type) {
       case "resync":
+      case "library.restored":
         plan.all = true;
+        break;
+      case "task.progress":
+        plan.tasks.push(e);
         break;
       case "asset.updated":
         if ("all" in e) add(keys.asset.all);
@@ -101,6 +108,7 @@ export function planFor(events: LiveEvent[]): RefreshPlan {
 
 /** Applies a plan: scan counters and source status are written straight into the cache (no refetch). */
 export function applyPlan(qc: QueryClient, plan: RefreshPlan): void {
+  for (const t of plan.tasks) qc.setQueryData(keys.task(t.task), t);
   if (plan.all) {
     void qc.invalidateQueries();
     return;

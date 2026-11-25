@@ -9,7 +9,9 @@ collected changes go out as ONE message per connected window, coalesced:
         {"type": "job.updated", "count": 42},              # jobs that finished since the last batch
         {"type": "scan.progress", "source_id": 1, ...},     # latest counters per source
         {"type": "source.status", "source_id": 1, "status": "unreachable"},
-        {"type": "tags.updated"}, {"type": "collections.updated"}]}
+        {"type": "task.progress", "task": "export", "done": 3000, "total": 100000},
+        {"type": "tags.updated"}, {"type": "collections.updated"},
+        {"type": "library.restored"}]}                    # a backup replaced the library: refetch all
 
 A large scan therefore sends at most 4 messages a second, not one per file. Events are hints:
 the UI refetches what it shows, and after a reconnect it refetches everything, because the
@@ -47,6 +49,7 @@ class EventBus:
         self._scans: dict[int, dict] = {}
         self._sources: dict[int, str] = {}
         self._flags: set[str] = set()
+        self._tasks: dict[str, dict] = {}
 
     # ------------------------------------------------------------------ publishing (any thread)
     def _active(self) -> bool:
@@ -88,6 +91,21 @@ class EventBus:
             return
         with self._lock:
             self._sources[source_id] = status
+        self._wake.set()
+
+    def task_progress(self, task: str, done: int, total: int) -> None:
+        """A long request (task: 'export') is this far along; latest counters only."""
+        if not self._active():
+            return
+        with self._lock:
+            self._tasks[task] = {"task": task, "done": done, "total": total}
+        self._wake.set()
+
+    def library_restored(self) -> None:
+        if not self._active():
+            return
+        with self._lock:
+            self._flags.add("library.restored")
         self._wake.set()
 
     def changed(self, what: str) -> None:
@@ -133,6 +151,7 @@ class EventBus:
                 events.append({"type": "job.updated", "count": self._jobs})
             events += [{"type": "scan.progress", **v} for v in self._scans.values()]
             events += [{"type": "source.status", "source_id": k, "status": v} for k, v in self._sources.items()]
+            events += [{"type": "task.progress", **v} for v in self._tasks.values()]
             events += [{"type": f} for f in sorted(self._flags)]
             self._reset()
             return events

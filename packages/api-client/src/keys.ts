@@ -26,7 +26,11 @@ export const keys = {
   settings: {
     resources: ["settings", "resources"] as const,
     scan: ["settings", "scan"] as const,
+    backup: ["settings", "backup"] as const,
   },
+  backups: ["backups"] as const,
+  /** Progress of a long request, written by live events (never fetched). */
+  task: (name: string) => ["task", name] as const,
 };
 
 export interface JobFilter {

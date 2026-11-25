@@ -1,16 +1,21 @@
-import { useJobStats } from "@imagevault/api-client";
+import { useBackups, useJobStats } from "@imagevault/api-client";
 import { Badge } from "@imagevault/ui";
+import { useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router";
 
 import { useLiveState } from "./engine";
 import { num } from "./format";
 import { Assets } from "./screens/Assets";
+import { NeedsRestore } from "./screens/Backup";
 import { Dashboard } from "./screens/Dashboard";
 import { Processing } from "./screens/Processing";
 import { Settings } from "./screens/Settings";
 import { Sources } from "./screens/Sources";
 
 export function App() {
+  const backups = useBackups();
+  const [skipped, setSkipped] = useState(false);
+  const damaged = skipped ? null : (backups.data?.needs_restore ?? null);
   return (
     <div className="app">
       <Header />
@@ -25,14 +30,18 @@ export function App() {
       </nav>
       <main className="content">
         <EngineBanner />
-        <Routes>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/photos" element={<Assets />} />
-          <Route path="/sources" element={<Sources />} />
-          <Route path="/processing" element={<Processing />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+        {damaged ? (
+          <NeedsRestore damaged={damaged} onSkip={() => setSkipped(true)} />
+        ) : (
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/photos" element={<Assets />} />
+            <Route path="/sources" element={<Sources />} />
+            <Route path="/processing" element={<Processing />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        )}
       </main>
     </div>
   );

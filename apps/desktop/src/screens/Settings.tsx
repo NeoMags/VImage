@@ -3,6 +3,7 @@ import { Button, Panel } from "@imagevault/ui";
 
 import { ErrorView, errorText, LoadingRows } from "../components/States";
 import { revealInExplorer } from "../native";
+import { BackupPanel, ExportPanel } from "./Backup";
 import { useAppPaths } from "../paths";
 import { type ThemeChoice, useTheme } from "../theme";
 
@@ -38,6 +39,10 @@ export function Settings() {
       </Panel>
 
       <ScanSettings />
+
+      <BackupPanel />
+
+      <ExportPanel />
 
       <Panel title="Appearance">
         <fieldset className="radios">

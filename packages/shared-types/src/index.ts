@@ -28,6 +28,12 @@ export type RemovalPreview = S["RemovalPreview"];
 export type Resources = S["Resources"];
 export type ScanOptions = S["ScanOptions"];
 export type QueueRuntime = S["QueueRuntime"];
+export type Backup = S["Backup"];
+export type Backups = S["Backups"];
+export type BackupMade = S["BackupMade"];
+export type BackupOptions = S["BackupOptions"];
+export type Restored = S["Restored"];
+export type Exported = S["Exported"];
 
 export type AssetKind = AssetSummary["kind"];
 export type AssetStatus = AssetSummary["status"];

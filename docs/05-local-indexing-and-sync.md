@@ -44,7 +44,7 @@ Folders kept in sync by OneDrive/Google Drive/Dropbox desktop clients are just l
 | App killed mid-scan | Resumes from last completed directory |
 | 10k files renamed at once | One or a few watch batches, or a full scan if events were dropped; file ids keep tags attached. Measured on the Linux CI container: 10,000 renames settled 7 s after they started, no location lost |
 | Corrupt or unsupported file | Asset `failed`/`unsupported` with reason; scan continues |
-| DB file corrupted | `PRAGMA integrity_check` on start; restore offered from `backups/` |
+| DB file corrupted | `PRAGMA integrity_check` on start. **Built (B19):** a damaged `library.db` (plus WAL/SHM) is moved to `backups/damaged-<stamp>.db`, never deleted; the engine starts on an empty library and the window shows the backups with Restore (or "Start with an empty library") |
 
 ## 6. Tests required for D1 sign-off
 Rename/move storm (10k files), drive unplug mid-scan and reconnect under a new letter, kill -9 during scan and during processing, 100k-file initial index (time + RAM on Neo's PC), read-only fixture folder proving no writes to sources.

@@ -166,6 +166,18 @@ class FolderWatcher:
             except Exception:  # noqa: BLE001 - an emitter that already died on its own
                 log.debug("unschedule of source %d: emitter already gone", source_id)
 
+    def unwatch_all(self) -> None:
+        """Before a restore: drop every watch (the restored database may list other sources)."""
+        for sid in self.watched():
+            self.remove(sid)
+
+    def rewatch_all(self) -> None:
+        """After a restore: watch the sources the database now lists, then reconcile them."""
+        for sid in self._source_ids():
+            if self.scanner.check_reachable(sid) == "active":
+                self.add(sid)
+        self.reconcile_all()
+
     def watched(self) -> list[int]:
         with self._cv:
             return sorted(self._watches)

@@ -896,6 +896,149 @@
         "title": "AssetVersion",
         "type": "object"
       },
+      "Backup": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "auto",
+              "manual",
+              "pre-restore",
+              "pre-migration",
+              "damaged"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "schema_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Version"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "created_at",
+          "size",
+          "schema_version"
+        ],
+        "title": "Backup",
+        "type": "object"
+      },
+      "BackupMade": {
+        "additionalProperties": false,
+        "properties": {
+          "backup": {
+            "$ref": "#/components/schemas/Backup"
+          },
+          "copy_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Copy Error"
+          },
+          "pruned": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pruned",
+            "type": "array"
+          }
+        },
+        "required": [
+          "backup",
+          "pruned",
+          "copy_error"
+        ],
+        "title": "BackupMade",
+        "type": "object"
+      },
+      "BackupOptions": {
+        "additionalProperties": false,
+        "description": "Library backups (B19): how many automatic ones to keep, and an optional second copy.",
+        "properties": {
+          "copy_to": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Copy To"
+          },
+          "keep": {
+            "default": 7,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Keep",
+            "type": "integer"
+          }
+        },
+        "title": "BackupOptions",
+        "type": "object"
+      },
+      "Backups": {
+        "additionalProperties": false,
+        "properties": {
+          "backups": {
+            "items": {
+              "$ref": "#/components/schemas/Backup"
+            },
+            "title": "Backups",
+            "type": "array"
+          },
+          "folder": {
+            "title": "Folder",
+            "type": "string"
+          },
+          "needs_restore": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs Restore"
+          }
+        },
+        "required": [
+          "backups",
+          "folder",
+          "needs_restore"
+        ],
+        "title": "Backups",
+        "type": "object"
+      },
       "BulkBody": {
         "additionalProperties": false,
         "properties": {
@@ -1272,6 +1415,69 @@
         "title": "Derivative",
         "type": "object"
       },
+      "ExportBody": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "enum": [
+              "json",
+              "csv"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "include_hidden": {
+            "default": false,
+            "title": "Include Hidden",
+            "type": "boolean"
+          },
+          "path": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "format",
+          "path"
+        ],
+        "title": "ExportBody",
+        "type": "object"
+      },
+      "Exported": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "format": {
+            "enum": [
+              "json",
+              "csv"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "photos": {
+            "title": "Photos",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "photos",
+          "bytes",
+          "format"
+        ],
+        "title": "Exported",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1311,6 +1517,17 @@
             "title": "Heif",
             "type": "object"
           },
+          "needs_restore": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs Restore"
+          },
           "platform": {
             "title": "Platform",
             "type": "string"
@@ -1349,6 +1566,7 @@
         "required": [
           "status",
           "version",
+          "needs_restore",
           "db_version",
           "queue",
           "uptime_s",
@@ -2245,6 +2463,68 @@
           }
         },
         "title": "Resources",
+        "type": "object"
+      },
+      "RestoreBody": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          }
+        },
+        "title": "RestoreBody",
+        "type": "object"
+      },
+      "Restored": {
+        "additionalProperties": false,
+        "properties": {
+          "pre_restore": {
+            "title": "Pre Restore",
+            "type": "string"
+          },
+          "restored_from": {
+            "title": "Restored From",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "thumbnails_requeued": {
+            "title": "Thumbnails Requeued",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "restored_from",
+          "schema_version",
+          "pre_restore",
+          "thumbnails_requeued"
+        ],
+        "title": "Restored",
         "type": "object"
       },
       "RevealPath": {
@@ -4036,6 +4316,134 @@
         "summary": "Asset Months"
       }
     },
+    "/v1/backups": {
+      "get": {
+        "operationId": "list_backups_v1_backups_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Backups"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Backups"
+      },
+      "post": {
+        "operationId": "back_up_now_v1_backups_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupMade"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Back Up Now"
+      }
+    },
+    "/v1/backups:restore": {
+      "post": {
+        "operationId": "restore_v1_backups_restore_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Restored"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore"
+      }
+    },
     "/v1/collections": {
       "get": {
         "operationId": "collections_v1_collections_get",
@@ -4404,6 +4812,56 @@
         "summary": "Reorder"
       }
     },
+    "/v1/export": {
+      "post": {
+        "operationId": "export_v1_export_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Exported"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export"
+      }
+    },
     "/v1/health": {
       "get": {
         "operationId": "health_v1_health_get",
@@ -4756,6 +5214,94 @@
           }
         },
         "summary": "Retry Job"
+      }
+    },
+    "/v1/settings/backup": {
+      "get": {
+        "operationId": "get_backup_settings_v1_settings_backup_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Backup Settings"
+      },
+      "put": {
+        "operationId": "put_backup_settings_v1_settings_backup_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackupOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Backup Settings"
       }
     },
     "/v1/settings/resources": {

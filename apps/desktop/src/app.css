@@ -169,3 +169,9 @@ button.link:hover { color: var(--iv-text); text-decoration: underline; }
 button.link:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
 .locations li { display: flex; align-items: center; gap: var(--iv-space-2); flex-wrap: wrap; }
 .notes form > button { align-self: flex-start; }
+
+/* Backup and restore (B19) */
+.confirm { display: flex; flex-direction: column; gap: var(--iv-space-2); padding: var(--iv-space-3); border: 1px solid var(--iv-warn); border-radius: var(--iv-radius-lg); background: var(--iv-surface); }
+.confirm p { margin: 0; }
+.needs-restore { max-width: 760px; }
+.needs-restore p { margin: 0; }

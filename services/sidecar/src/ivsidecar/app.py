@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import __version__, api_status, handlers, probes, schemas, settings
+from . import __version__, api_backup, api_status, handlers, probes, schemas, settings
 from . import scanner as scan_mod
 from .api_library import build_router
 from .jobqueue import JobQueue
@@ -56,6 +56,7 @@ def create_app(
     scanner: scan_mod.Scanner | None = None,
     watcher: FolderWatcher | None = None,
     on_shutdown: Callable[[], None] | None = None,
+    library_state: api_backup.LibraryState | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="ImageVault sidecar", version=__version__, docs_url=None, redoc_url=None, openapi_url="/v1/openapi.json"
@@ -79,6 +80,10 @@ def create_app(
     status_routes, ws_routes = api_status.build_router(conn, db_lock, token, origins, queue)
     app.include_router(status_routes, dependencies=[Depends(require_token)])
     app.include_router(ws_routes)  # checks the token itself (subprotocol)
+    state = library_state or api_backup.LibraryState()
+    app.include_router(
+        api_backup.build_router(conn, db_lock, state, queue, scanner, watcher), dependencies=[Depends(require_token)]
+    )
     if dev_origins():
         _install_dev_thumbs(app, conn, token)
 
@@ -89,6 +94,7 @@ def create_app(
         return {
             "status": "ok",
             "version": __version__,
+            "needs_restore": state.needs_restore,
             "db_version": conn.execute("PRAGMA user_version").fetchone()[0],
             "queue": {
                 "queued": jobs.get("queued", 0),
