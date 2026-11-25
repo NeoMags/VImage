@@ -349,11 +349,19 @@ def asset_facets(conn: sqlite3.Connection, tag_q: str | None = None, **filters) 
     if tag_q:  # matched on the slug, like GET /tags; % and _ are literal
         tag_sql = "AND t.slug LIKE ? ESCAPE '\\'"
         tag_args.append("%" + slugify(tag_q).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
-    tags = conn.execute(
-        f"SELECT t.id, t.name, count(*) FROM assets a JOIN asset_tags x ON x.asset_id = a.id AND x.rejected = 0 "
-        f"JOIN tags t ON t.id = x.tag_id WHERE {w} {tag_sql} GROUP BY t.id ORDER BY count(*) DESC, t.name LIMIT ?",
-        (*tag_args, FACET_TAGS),
-    ).fetchall()
+    # Cheap exact shortcuts: no tags or collections at all means nothing to count.
+    has_tags, has_colls = conn.execute(
+        "SELECT EXISTS (SELECT 1 FROM asset_tags WHERE rejected = 0), EXISTS (SELECT 1 FROM collection_assets)"
+    ).fetchone()
+    tags = (
+        []
+        if not has_tags
+        else conn.execute(
+            f"SELECT t.id, t.name, count(*) FROM assets a JOIN asset_tags x ON x.asset_id = a.id AND x.rejected = 0 "
+            f"JOIN tags t ON t.id = x.tag_id WHERE {w} {tag_sql} GROUP BY t.id ORDER BY count(*) DESC, t.name LIMIT ?",
+            (*tag_args, FACET_TAGS),
+        ).fetchall()
+    )
     sw, sa = where("source")
     sources = conn.execute(
         f"SELECT l.source_id, count(DISTINCT a.id) FROM assets a JOIN file_locations l ON l.asset_id = a.id "
@@ -361,15 +369,30 @@ def asset_facets(conn: sqlite3.Connection, tag_q: str | None = None, **filters) 
         sa,
     ).fetchall()
     cw, ca = where("collection")
-    colls = conn.execute(
-        f"SELECT c.collection_id, count(*) FROM assets a JOIN collection_assets c ON c.asset_id = a.id "
-        f"WHERE {cw} GROUP BY c.collection_id ORDER BY c.collection_id",
-        ca,
-    ).fetchall()
-    dw, da = where("date")
-    d_min, d_max = conn.execute(f"SELECT min(a.sort_date), max(a.sort_date) FROM assets a WHERE {dw}", da).fetchone()
-    zw, za = where("size")
-    z_min, z_max = conn.execute(f"SELECT min(a.byte_size), max(a.byte_size) FROM assets a WHERE {zw}", za).fetchone()
+    colls = (
+        []
+        if not has_colls
+        else conn.execute(
+            f"SELECT c.collection_id, count(*) FROM assets a JOIN collection_assets c ON c.asset_id = a.id "
+            f"WHERE {cw} GROUP BY c.collection_id ORDER BY c.collection_id",
+            ca,
+        ).fetchall()
+    )
+    date_set = bool(filters.get("date_from") or filters.get("date_to"))
+    size_set = filters.get("min_bytes") is not None or filters.get("max_bytes") is not None
+    if not date_set and not size_set:  # both bounds ignore only their own filter: one query
+        d_min, d_max, z_min, z_max = conn.execute(
+            f"SELECT min(a.sort_date), max(a.sort_date), min(a.byte_size), max(a.byte_size) FROM assets a WHERE {w}", a
+        ).fetchone()
+    else:
+        dw, da = where("date")
+        d_min, d_max = conn.execute(
+            f"SELECT min(a.sort_date), max(a.sort_date) FROM assets a WHERE {dw}", da
+        ).fetchone()
+        zw, za = where("size")
+        z_min, z_max = conn.execute(
+            f"SELECT min(a.byte_size), max(a.byte_size) FROM assets a WHERE {zw}", za
+        ).fetchone()
     return {
         "total": total,
         "kind": ranked("kind"),
