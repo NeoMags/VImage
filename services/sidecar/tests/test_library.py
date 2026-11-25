@@ -405,9 +405,15 @@ def test_collections_nesting_order_and_delete(api):
     client.request("DELETE", f"/v1/collections/{italy}/assets", headers=AUTH, json={"ids": [3]})
     assert _walk(client, collection=italy, sort="position", order="asc") == [5, 1]
     assert client.patch(f"/v1/collections/{rome}", headers=AUTH, json={"name": "Roma"}).json()["name"] == "Roma"
+    # deleting a parent keeps what is inside: Italy moves up to the top level, Roma stays in Italy
     assert client.delete(f"/v1/collections/{trips}", headers=AUTH).status_code == 204
-    assert _get(client, "/v1/collections") == []  # nested ones go with it
+    left = {c["name"]: c["parent_id"] for c in _get(client, "/v1/collections")}
+    assert left == {"Italy": None, "Roma": italy}
+    assert client.delete(f"/v1/collections/{italy}", headers=AUTH).status_code == 204
+    assert {c["name"]: c["parent_id"] for c in _get(client, "/v1/collections")} == {"Roma": None}
+    assert conn.execute("SELECT count(*) FROM collection_assets").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM assets").fetchone()[0] == 5  # photos never deleted
+    assert client.delete(f"/v1/collections/{trips}", headers=AUTH).status_code == 404
 
 
 # --------------------------------------------------------------------------- notes
