@@ -215,11 +215,14 @@ class JobQueue:
         with self._cond:
             self._cond.wait(self._poll_s)
 
-    def _claim(self) -> sqlite3.Row | None:
+    def _claim(self, idx: int = 0) -> sqlite3.Row | None:
+        # AI stages run only in slot 0, so the large models are loaded in one worker process
+        # (about 1 GB), not in every one.
+        only = "" if idx == 0 else " AND stage NOT IN ('embed', 'classify')"
         with self._lock:
             return self.conn.execute(
                 f"UPDATE jobs SET status = 'running', started_at = {NOW} WHERE id = ("
-                f"  SELECT id FROM jobs WHERE status = 'queued' AND run_after <= {NOW}"
+                f"  SELECT id FROM jobs WHERE status = 'queued' AND run_after <= {NOW}{only}"
                 "  ORDER BY priority, run_after, id LIMIT 1) RETURNING *"
             ).fetchone()
 
@@ -236,13 +239,13 @@ class JobQueue:
                     worker.stop()  # give the memory back while waiting
                     self._wait()
                     continue
-                job = self._claim()
+                job = self._claim(idx)
                 if job is None:
                     self._wait()
                     continue
                 try:
                     with self._lock:
-                        payload = handlers.build_payload(self.conn, job, self._max_pixels)
+                        payload = handlers.build_payload(self.conn, job, self._max_pixels, self.library_dir)
                 except handlers.MissingFile as e:
                     self._finish(job, "fatal", f"missing_file: {e}")
                     continue

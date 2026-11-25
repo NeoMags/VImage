@@ -91,6 +91,7 @@ a { color: var(--iv-accent); }
 .form label { display: flex; flex-direction: column; gap: 4px; font-size: var(--iv-text-sm); color: var(--iv-text-muted); }
 .form .row { grid-column: 1 / -1; }
 label.check { flex-direction: row; align-items: center; gap: var(--iv-space-2); color: var(--iv-text); display: flex; }
+label.field-inline { display: flex; flex-direction: row; align-items: center; gap: var(--iv-space-2); color: var(--iv-text); }
 input, select { height: 32px; padding: 0 var(--iv-space-2); border: 1px solid var(--iv-border); border-radius: var(--iv-radius); background: var(--iv-surface); color: var(--iv-text); font: inherit; }
 input[type="checkbox"], input[type="radio"] { height: auto; }
 .radios { border: 0; padding: 0; margin: 0; display: flex; gap: var(--iv-space-4); }

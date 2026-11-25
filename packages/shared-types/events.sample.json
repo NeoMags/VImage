@@ -40,6 +40,9 @@
         "total": 100000
       },
       {
+        "type": "ai.updated"
+      },
+      {
         "type": "collections.updated"
       },
       {

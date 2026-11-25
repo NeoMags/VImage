@@ -10,7 +10,7 @@ collected changes go out as ONE message per connected window, coalesced:
         {"type": "scan.progress", "source_id": 1, ...},     # latest counters per source
         {"type": "source.status", "source_id": 1, "status": "unreachable"},
         {"type": "task.progress", "task": "export", "done": 3000, "total": 100000},
-        {"type": "tags.updated"}, {"type": "collections.updated"},
+        {"type": "tags.updated"}, {"type": "collections.updated"}, {"type": "ai.updated"},
         {"type": "library.restored"}]}                    # a backup replaced the library: refetch all
 
 A large scan therefore sends at most 4 messages a second, not one per file. Events are hints:
@@ -109,7 +109,7 @@ class EventBus:
         self._wake.set()
 
     def changed(self, what: str) -> None:
-        """what: 'tags' or 'collections'."""
+        """what: 'tags', 'collections' or 'ai' (model download finished, AI switched on/off)."""
         if not self._active():
             return
         with self._lock:

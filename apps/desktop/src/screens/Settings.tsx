@@ -3,6 +3,7 @@ import { Button, Panel } from "@imagevault/ui";
 
 import { ErrorView, errorText, LoadingRows } from "../components/States";
 import { revealInExplorer } from "../native";
+import { AiPanel } from "./AiPanel";
 import { BackupPanel, ExportPanel } from "./Backup";
 import { useAppPaths } from "../paths";
 import { type ThemeChoice, useTheme } from "../theme";
@@ -37,6 +38,8 @@ export function Settings() {
         </dl>
         <p className="muted small">Moving the library to another folder comes in a later version.</p>
       </Panel>
+
+      <AiPanel />
 
       <ScanSettings />
 
