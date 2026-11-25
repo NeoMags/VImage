@@ -196,7 +196,24 @@ def test_the_engine_never_changes_a_source_folder(world):
         assert any(x["file_name"] == "added later.jpg" for x in all_assets(eng)), "watcher did not see the new file"
         eng.idle()
 
-        # 4. A full rescan (the reconcile path), then removing the source.
+        # 4. B19 on a live engine: back up, export, refuse an export into the source, then
+        #    restore while the queue, scanner and watcher run (it pauses and resumes them).
+        out_dir = library.parent / "exports"
+        out_dir.mkdir()
+        backup = eng.send("POST", "/v1/backups")["backup"]["name"]
+        for fmt in ("json", "csv"):
+            eng.send(
+                "POST", "/v1/export", json={"format": fmt, "path": str(out_dir / f"lib.{fmt}"), "include_hidden": True}
+            )
+        eng.send("POST", "/v1/export", ok=(422,), json={"format": "json", "path": str(src / "sub" / "x.json")})
+        eng.send("PATCH", f"/v1/assets/{a}", json={"title": "after the backup"})
+        restored = eng.send("POST", "/v1/backups:restore", json={"name": backup})
+        assert restored["thumbnails_requeued"] == 0
+        assert eng.get(f"/v1/assets/{a}")["title"]["value"] == "Front porch"
+        assert eng.get("/v1/sources")[0]["watching"]
+        eng.idle()
+
+        # 5. A full rescan (the reconcile path), then removing the source.
         eng.send("POST", f"/v1/sources/{source_id}/scan")
         eng.idle()
         failed = eng.get("/v1/jobs", status="failed", limit=500)

@@ -336,6 +336,7 @@ class HealthQueue(Out):
 class Health(Out):
     status: Literal["ok"]
     version: str
+    needs_restore: str | None  # library.db was damaged at start and set aside under this name (B19)
     db_version: int
     queue: HealthQueue
     uptime_s: float
@@ -408,3 +409,41 @@ class SourceRemoved(Out):
     removed: int
     assets_deleted: int
     thumbnails_deleted: int
+
+
+# ---------------------------------------------------------------------------- backups (B19)
+BackupKind = Literal["auto", "manual", "pre-restore", "pre-migration", "damaged"]
+
+
+class Backup(Out):
+    name: str
+    kind: BackupKind
+    created_at: str
+    size: int
+    schema_version: int | None
+
+
+class Backups(Out):
+    backups: list[Backup]
+    folder: str
+    needs_restore: str | None  # the damaged file's name when the library could not be opened at start
+
+
+class BackupMade(Out):
+    backup: Backup
+    pruned: list[str]
+    copy_error: str | None
+
+
+class Restored(Out):
+    restored_from: str
+    schema_version: int
+    pre_restore: str
+    thumbnails_requeued: int
+
+
+class Exported(Out):
+    path: str
+    photos: int
+    bytes: int
+    format: Literal["json", "csv"]

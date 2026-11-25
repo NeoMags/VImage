@@ -47,7 +47,21 @@ class ScanOptions(BaseModel):
     include_online_only: bool = False
 
 
-GROUPS: dict[str, type[BaseModel]] = {"resources": Resources, "queue": QueueState, "scan": ScanOptions}
+class BackupOptions(BaseModel):
+    """Library backups (B19): how many automatic ones to keep, and an optional second copy."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    keep: int = Field(default=7, ge=1, le=100)
+    copy_to: str | None = Field(default=None, min_length=1, max_length=4096)
+
+
+GROUPS: dict[str, type[BaseModel]] = {
+    "resources": Resources,
+    "queue": QueueState,
+    "scan": ScanOptions,
+    "backup": BackupOptions,
+}
 
 
 def load(conn: sqlite3.Connection, group: str) -> BaseModel:

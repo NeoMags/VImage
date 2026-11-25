@@ -14,7 +14,7 @@ describe("parseMessage", () => {
     }
     const kinds = sample.flatMap((m) => ("events" in m && m.events ? m.events.map((e) => e.type) : [m.type]));
     expect(new Set(kinds)).toEqual(
-      new Set(["hello", "asset.updated", "job.updated", "scan.progress", "source.status", "tags.updated", "collections.updated", "resync"]),
+      new Set(["hello", "asset.updated", "job.updated", "scan.progress", "source.status", "tags.updated", "collections.updated", "task.progress", "library.restored", "resync"]),
     );
   });
 
@@ -39,6 +39,10 @@ describe("planFor / applyPlan", () => {
       keys.asset.one(3), keys.asset.one(9), keys.assets.all, keys.stats, keys.jobs.all, keys.jobStats, keys.tags,
     ]);
     expect(planFor([{ type: "resync" }]).all).toBe(true);
+    expect(planFor([{ type: "library.restored" }]).all).toBe(true);
+    const qc = new QueryClient();
+    applyPlan(qc, planFor([{ type: "task.progress", task: "export", done: 3, total: 9 }]));
+    expect(qc.getQueryData(keys.task("export"))).toEqual({ type: "task.progress", task: "export", done: 3, total: 9 });
   });
 
   it("writes scan progress and drive status straight into the sources cache", () => {

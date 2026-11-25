@@ -13,6 +13,9 @@ export type ScanProgressEvent = {
   files_missing: number;
 };
 
+/** Progress of a long request (B19: export). Latest counters only. */
+export type TaskProgressEvent = { type: "task.progress"; task: "export"; done: number; total: number };
+
 export type LiveEvent =
   | { type: "asset.updated"; ids: number[] }
   | { type: "asset.updated"; all: true }
@@ -21,6 +24,9 @@ export type LiveEvent =
   | { type: "source.status"; source_id: number; status: "active" | "paused" | "unreachable" | "removed" }
   | { type: "tags.updated" }
   | { type: "collections.updated" }
+  | TaskProgressEvent
+  /** A backup replaced the library: refetch everything. */
+  | { type: "library.restored" }
   /** The window fell behind and its backlog was dropped: refetch everything. */
   | { type: "resync" };
 

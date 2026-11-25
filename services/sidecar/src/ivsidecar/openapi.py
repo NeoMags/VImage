@@ -44,6 +44,8 @@ def events_sample() -> str:
     b.source_status(2, "unreachable")
     b.changed("tags")
     b.changed("collections")
+    b.task_progress("export", 3000, 100000)
+    b.library_restored()
     msgs = [b.hello(), {"type": "batch", "events": b._take()}]
     b.asset_updated_all()
     msgs.append({"type": "batch", "events": b._take()})

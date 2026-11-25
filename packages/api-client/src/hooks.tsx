@@ -2,9 +2,11 @@ import type {
   AssetFilter,
   AssetPatch,
   AssetQuery,
+  BackupOptions,
   BulkBody,
   Resources,
   ScanOptions,
+  TaskProgressEvent,
 } from "@imagevault/shared-types";
 import {
   type QueryClient,
@@ -322,4 +324,65 @@ export function useAssetEdits(id: number) {
       onSuccess: done(keys.assets.all, keys.stats),
     }),
   };
+}
+
+// ------------------------------------------------------------------------------ backups (B19)
+export function useBackups() {
+  const api = useApi();
+  return useQuery({ queryKey: keys.backups, queryFn: () => unwrap(api.GET("/v1/backups")) });
+}
+
+export function useBackupOptions() {
+  const api = useApi();
+  return useQuery({ queryKey: keys.settings.backup, queryFn: () => unwrap(api.GET("/v1/settings/backup")) });
+}
+
+export function useBackupNow() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.POST("/v1/backups")),
+    onSuccess: () => refresh(qc, keys.backups),
+  });
+}
+
+export function useSaveBackupOptions() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BackupOptions) => unwrap(api.PUT("/v1/settings/backup", { body })),
+    onSuccess: () => refresh(qc, keys.settings.backup),
+  });
+}
+
+/** Replaces the library with a backup (by name) or a .db file (by path); then everything is refetched. */
+export function useRestore() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string } | { path: string }) => unwrap(api.POST("/v1/backups:restore", { body })),
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
+export function useExport() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { format: "json" | "csv"; path: string; include_hidden: boolean }) => {
+      qc.removeQueries({ queryKey: keys.task("export") });
+      return unwrap(api.POST("/v1/export", { body }));
+    },
+  });
+}
+
+/** Latest export progress from live events, or undefined. */
+export function useTaskProgress(name: "export"): TaskProgressEvent | undefined {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: keys.task(name),
+    queryFn: () => qc.getQueryData<TaskProgressEvent>(keys.task(name)) ?? null,
+    enabled: false,
+    staleTime: Infinity,
+  }).data ?? undefined;
 }

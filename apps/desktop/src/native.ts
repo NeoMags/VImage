@@ -46,11 +46,35 @@ export async function getAppPaths(): Promise<AppPaths | null> {
 }
 
 /** Windows folder picker; null when cancelled or outside the app. */
-export async function pickFolder(): Promise<string | null> {
+export async function pickFolder(title = "Add a folder to ImageVault"): Promise<string | null> {
   if (!inTauri()) return window.prompt("Folder path") || null; // e2e / browser only
   const { open } = await import("@tauri-apps/plugin-dialog");
-  const picked = await open({ directory: true, multiple: false, title: "Add a folder to ImageVault" });
+  const picked = await open({ directory: true, multiple: false, title });
   return typeof picked === "string" ? picked : null;
+}
+
+/** Windows file picker for a library backup (.db); null when cancelled. */
+export async function pickBackupFile(): Promise<string | null> {
+  if (!inTauri()) return window.prompt("Backup file path") || null;
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const picked = await open({
+    multiple: false,
+    title: "Restore ImageVault from a backup",
+    filters: [{ name: "ImageVault backup", extensions: ["db"] }],
+  });
+  return typeof picked === "string" ? picked : null;
+}
+
+/** Windows "Save as" dialog; only returns the chosen path (the engine writes the file). */
+export async function pickSavePath(defaultName: string, ext: "json" | "csv"): Promise<string | null> {
+  if (!inTauri()) return window.prompt("Save as (full path)", defaultName) || null;
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const picked = await save({
+    title: "Export the ImageVault library",
+    defaultPath: defaultName,
+    filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+  });
+  return picked ?? null;
 }
 
 /** Show a file or folder in Explorer (the only opener permission the shell grants). */

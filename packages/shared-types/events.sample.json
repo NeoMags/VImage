@@ -34,7 +34,16 @@
         "status": "unreachable"
       },
       {
+        "type": "task.progress",
+        "task": "export",
+        "done": 3000,
+        "total": 100000
+      },
+      {
         "type": "collections.updated"
+      },
+      {
+        "type": "library.restored"
       },
       {
         "type": "tags.updated"

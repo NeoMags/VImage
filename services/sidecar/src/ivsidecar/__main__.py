@@ -18,7 +18,8 @@ from pathlib import Path
 
 import uvicorn
 
-from . import __version__, db, logs
+from . import __version__, backups, db, logs
+from .api_backup import LibraryState
 from .app import create_app
 from .jobqueue import JobQueue
 from .scanner import Scanner
@@ -34,6 +35,16 @@ def default_library_dir() -> Path:
     # only matters when the sidecar is run on its own.
     base = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
     return Path(base) / "ImageVault" / "Library"
+
+
+def _auto_backup(library: Path) -> None:
+    """Daily automatic backup, at start (B19). A failure is logged; it never stops the engine."""
+    try:
+        made = backups.auto_backup_if_due(library)
+        if made:
+            log.info("automatic backup %s", made["backup"]["name"])
+    except Exception:  # noqa: BLE001
+        log.exception("automatic backup failed")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -64,7 +75,15 @@ def main(argv: list[str] | None = None) -> int:
     if parent and parent.isdigit():
         watch_parent(int(parent))
     t_db = time.time()
-    conn = db.open_library(args.library)
+    needs_restore = None
+    try:
+        conn = db.open_library(args.library)
+    except db.Damaged as e:
+        # Never stop on a damaged library and never delete it: set it aside, start empty, and
+        # let the window offer a restore from a backup (B19).
+        needs_restore = db.quarantine(args.library)
+        log.error("%s; moved to backups/%s, starting with an empty library", e, needs_restore)
+        conn = db.open_library(args.library)
     db_ms = round((time.time() - t_db) * 1000)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -83,7 +102,16 @@ def main(argv: list[str] | None = None) -> int:
             server.should_exit = True
 
     config = uvicorn.Config(
-        create_app(conn, token, started, queue, scanner, watcher, on_shutdown=request_exit),
+        create_app(
+            conn,
+            token,
+            started,
+            queue,
+            scanner,
+            watcher,
+            on_shutdown=request_exit,
+            library_state=LibraryState(needs_restore),
+        ),
         log_level="warning",
         access_log=False,
     )
@@ -99,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     # watch every folder, then a full scan of each (changes made while the app was closed). In a
     # thread: setting up watches can take a while on big trees and must not delay the API.
     threading.Thread(target=watcher.start, daemon=True, name="iv-watch-start").start()
+    threading.Thread(target=_auto_backup, args=(args.library,), daemon=True, name="iv-auto-backup").start()
     try:
         server.run(sockets=[sock])
     finally:

@@ -219,6 +219,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Backups */
+        get: operations["list_backups_v1_backups_get"];
+        put?: never;
+        /** Back Up Now */
+        post: operations["back_up_now_v1_backups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/backups:restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore */
+        post: operations["restore_v1_backups_restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/collections": {
         parameters: {
             query?: never;
@@ -284,6 +319,23 @@ export interface paths {
         /** Reorder */
         put: operations["reorder_v1_collections__coll_id__assets__asset_id__position_put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export */
+        post: operations["export_v1_export_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -403,6 +455,24 @@ export interface paths {
         put?: never;
         /** Retry Job */
         post: operations["retry_job_v1_jobs__job_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/settings/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Backup Settings */
+        get: operations["get_backup_settings_v1_settings_backup_get"];
+        /** Put Backup Settings */
+        put: operations["put_backup_settings_v1_settings_backup_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -864,6 +934,52 @@ export interface components {
             /** Sha256 */
             sha256: string;
         };
+        /** Backup */
+        Backup: {
+            /** Created At */
+            created_at: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "auto" | "manual" | "pre-restore" | "pre-migration" | "damaged";
+            /** Name */
+            name: string;
+            /** Schema Version */
+            schema_version: number | null;
+            /** Size */
+            size: number;
+        };
+        /** BackupMade */
+        BackupMade: {
+            backup: components["schemas"]["Backup"];
+            /** Copy Error */
+            copy_error: string | null;
+            /** Pruned */
+            pruned: string[];
+        };
+        /**
+         * BackupOptions
+         * @description Library backups (B19): how many automatic ones to keep, and an optional second copy.
+         */
+        BackupOptions: {
+            /** Copy To */
+            copy_to?: string | null;
+            /**
+             * Keep
+             * @default 7
+             */
+            keep: number;
+        };
+        /** Backups */
+        Backups: {
+            /** Backups */
+            backups: components["schemas"]["Backup"][];
+            /** Folder */
+            folder: string;
+            /** Needs Restore */
+            needs_restore: string | null;
+        };
         /** BulkBody */
         BulkBody: {
             /** Add Tags */
@@ -957,6 +1073,35 @@ export interface components {
             /** Width */
             width: number | null;
         };
+        /** ExportBody */
+        ExportBody: {
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "json" | "csv";
+            /**
+             * Include Hidden
+             * @default false
+             */
+            include_hidden: boolean;
+            /** Path */
+            path: string;
+        };
+        /** Exported */
+        Exported: {
+            /** Bytes */
+            bytes: number;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "json" | "csv";
+            /** Path */
+            path: string;
+            /** Photos */
+            photos: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -980,6 +1125,8 @@ export interface components {
             heif: {
                 [key: string]: unknown;
             };
+            /** Needs Restore */
+            needs_restore: string | null;
             /** Platform */
             platform: string;
             /** Python */
@@ -1283,6 +1430,24 @@ export interface components {
             only_when_idle: boolean;
             /** Threads */
             threads?: number;
+        };
+        /** RestoreBody */
+        RestoreBody: {
+            /** Name */
+            name?: string | null;
+            /** Path */
+            path?: string | null;
+        };
+        /** Restored */
+        Restored: {
+            /** Pre Restore */
+            pre_restore: string;
+            /** Restored From */
+            restored_from: string;
+            /** Schema Version */
+            schema_version: number;
+            /** Thumbnails Requeued */
+            thumbnails_requeued: number;
         };
         /** RevealPath */
         RevealPath: {
@@ -1996,6 +2161,103 @@ export interface operations {
             };
         };
     };
+    list_backups_v1_backups_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Backups"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    back_up_now_v1_backups_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupMade"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_v1_backups_restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Restored"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     collections_v1_collections_get: {
         parameters: {
             query?: never;
@@ -2240,6 +2502,41 @@ export interface operations {
             };
         };
     };
+    export_v1_export_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Exported"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_v1_health_get: {
         parameters: {
             query?: never;
@@ -2452,6 +2749,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobRetried"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_backup_settings_v1_settings_backup_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_backup_settings_v1_settings_backup_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupOptions"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupOptions"];
                 };
             };
             /** @description Validation Error */
