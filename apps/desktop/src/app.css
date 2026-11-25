@@ -200,3 +200,25 @@ button.link:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
 .segmented.tri button { flex: 1; display: inline-flex; justify-content: center; gap: 6px; }
 .segmented.tri button[aria-checked="true"] { background: var(--iv-accent); color: var(--iv-accent-text); }
 .segmented.tri button[aria-checked="true"] .count { color: inherit; }
+
+/* Collections (B16) */
+.sidebar { overflow-y: auto; }
+.nav-collections { margin-top: var(--iv-space-4); display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.nav-head { display: flex; align-items: center; justify-content: space-between; padding: 0 var(--iv-space-3); font-size: var(--iv-text-sm); font-weight: 600; color: var(--iv-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.nav-head .link { font-size: 18px; line-height: 1; padding: 0 4px; }
+.nav-empty { padding: 0 var(--iv-space-3); margin: 4px 0; }
+.new-collection { padding: 2px var(--iv-space-2); }
+.new-collection .inline-input { width: 100%; min-width: 0; }
+.tree { list-style: none; margin: 0; padding: 0; }
+.tree-row { display: flex; align-items: center; }
+.tree-row .twisty { flex: none; width: 18px; border: 0; background: none; color: var(--iv-text-muted); cursor: pointer; padding: 0; font: inherit; font-size: 11px; }
+.tree-row a { flex: 1; min-width: 0; gap: var(--iv-space-2); padding: 4px var(--iv-space-2); }
+.tree-row a .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.collection-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--iv-space-2); }
+.picker { position: relative; display: inline-block; }
+.picker-pop { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: 280px; display: flex; flex-direction: column; gap: 6px; padding: var(--iv-space-2); background: var(--iv-surface); border: 1px solid var(--iv-border); border-radius: var(--iv-radius); box-shadow: 0 6px 24px rgb(0 0 0 / 0.18); }
+.picker-pop .inline-input { width: 100%; min-width: 0; }
+.picker-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; }
+.picker-list button { width: 100%; text-align: left; border: 0; background: none; color: var(--iv-text); padding: 4px 8px; border-radius: var(--iv-radius); cursor: pointer; font: inherit; }
+.picker-list button:hover, .picker-list button:focus-visible { background: var(--iv-surface-2); }
+.collection-actions select { padding: 3px 6px; font-size: var(--iv-text-sm); border: 1px solid var(--iv-border); border-radius: var(--iv-radius); background: var(--iv-surface); color: var(--iv-text); }

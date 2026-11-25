@@ -399,3 +399,33 @@ export function useTaskProgress(name: "export"): TaskProgressEvent | undefined {
     staleTime: Infinity,
   }).data ?? undefined;
 }
+
+// ------------------------------------------------------------------ collections (B16)
+export function useCreateCollection() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; parent_id?: number | null }) => unwrap(api.POST("/v1/collections", { body })),
+    onSuccess: () => refresh(qc, keys.collections),
+  });
+}
+
+export function useUpdateCollection() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; name?: string; parent_id?: number | null }) =>
+      unwrap(api.PATCH("/v1/collections/{coll_id}", { params: { path: { coll_id: id } }, body })),
+    onSuccess: () => refresh(qc, keys.collections),
+  });
+}
+
+/** Photos stay; collections inside it move up one level. */
+export function useDeleteCollection() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => unwrap(api.DELETE("/v1/collections/{coll_id}", { params: { path: { coll_id: id } } })),
+    onSuccess: () => refresh(qc, keys.collections, keys.assets.all, keys.asset.all),
+  });
+}

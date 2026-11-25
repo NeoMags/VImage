@@ -1,8 +1,9 @@
 import { useBackups, useJobStats } from "@imagevault/api-client";
 import { Badge } from "@imagevault/ui";
 import { useState } from "react";
-import { NavLink, Navigate, Route, Routes } from "react-router";
+import { NavLink, Navigate, Route, Routes, useParams } from "react-router";
 
+import { CollectionsNav } from "./collections/CollectionsNav";
 import { useLiveState } from "./engine";
 import { num } from "./format";
 import { Assets } from "./screens/Assets";
@@ -27,6 +28,7 @@ export function App() {
           Processing <QueueBadge />
         </NavLink>
         <NavLink to="/settings">Settings</NavLink>
+        <CollectionsNav />
       </nav>
       <main className="content">
         <EngineBanner />
@@ -36,6 +38,7 @@ export function App() {
           <Routes>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/photos" element={<Assets />} />
+            <Route path="/collections/:id" element={<CollectionScreen />} />
             <Route path="/sources" element={<Sources />} />
             <Route path="/processing" element={<Processing />} />
             <Route path="/settings" element={<Settings />} />
@@ -45,6 +48,12 @@ export function App() {
       </main>
     </div>
   );
+}
+
+function CollectionScreen() {
+  const { id } = useParams();
+  const n = Number(id);
+  return Number.isInteger(n) && n > 0 ? <Assets key={n} collectionId={n} /> : <Navigate to="/photos" replace />;
 }
 
 function Header() {

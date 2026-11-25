@@ -1,10 +1,11 @@
 // The filter panel beside the gallery (B15). Every option shows how many photos ticking it would
 // give; the counts come from GET /v1/assets:facets with the same filters as the gallery.
 import { useAssetFacets, useCollections, useSources, useTags } from "@imagevault/api-client";
-import type { AssetFacets, AssetFilter, Collection } from "@imagevault/shared-types";
+import type { AssetFacets, AssetFilter } from "@imagevault/shared-types";
 import { Button } from "@imagevault/ui";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import { collectionOptions } from "../collections/tree";
 import { ErrorView } from "../components/States";
 import { num } from "../format";
 import {
@@ -17,21 +18,6 @@ import {
   setFilters,
   statusLabel,
 } from "./filters";
-
-/** Collections as indented options, parents before children, by name at each level. */
-export function collectionOptions(all: Collection[]): { c: Collection; depth: number }[] {
-  const kids = new Map<number | null, Collection[]>();
-  for (const c of all) kids.set(c.parent_id ?? null, [...(kids.get(c.parent_id ?? null) ?? []), c]);
-  const out: { c: Collection; depth: number }[] = [];
-  const walk = (parent: number | null, depth: number) => {
-    for (const c of [...(kids.get(parent) ?? [])].sort((a, b) => a.name.localeCompare(b.name))) {
-      out.push({ c, depth });
-      walk(c.id, depth + 1);
-    }
-  };
-  walk(null, 0);
-  return out;
-}
 
 function Section({ title, children, active }: { title: string; children: ReactNode; active?: boolean }) {
   return (
@@ -117,7 +103,16 @@ function TriState({ label, value, counts, onChange }: {
   );
 }
 
-export function FilterPanel({ filter, onClose }: { filter: AssetFilter; onClose: () => void }) {
+export function FilterPanel({
+  filter,
+  onClose,
+  inCollection = false,
+}: {
+  filter: AssetFilter;
+  onClose: () => void;
+  /** Viewing one collection: it is fixed, so there is no collection choice. */
+  inCollection?: boolean;
+}) {
   const f = filter as Filters;
   const [tagQ, setTagQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
@@ -171,7 +166,7 @@ export function FilterPanel({ filter, onClose }: { filter: AssetFilter; onClose:
         <strong>Filters</strong>
         {d ? <span className="muted small" aria-live="polite">{num(d.total)} match</span> : null}
         <span className="spacer" />
-        {activeCount(f) ? (
+        {activeCount(inCollection ? { ...f, collection: undefined } : f) ? (
           <Button size="sm" onClick={() => setFilters({})}>
             Clear all
           </Button>
@@ -256,16 +251,18 @@ export function FilterPanel({ filter, onClose }: { filter: AssetFilter; onClose:
           )}
           {selectedTags.length > 1 ? <p className="muted small">Photos must have all ticked tags.</p> : null}
         </Section>
-        <Section title="Collection" active={f.collection != null}>
-          <select aria-label="Collection" value={f.collection ?? ""} onChange={(e) => set({ collection: e.target.value ? Number(e.target.value) : undefined })}>
-            <option value="">Any</option>
-            {collectionOptions(collections.data ?? []).map(({ c, depth }) => (
-              <option key={c.id} value={c.id}>
-                {"  ".repeat(depth) + c.name} ({num(collCount.get(c.id) ?? 0)})
-              </option>
-            ))}
-          </select>
-        </Section>
+        {inCollection ? null : (
+          <Section title="Collection" active={f.collection != null}>
+            <select aria-label="Collection" value={f.collection ?? ""} onChange={(e) => set({ collection: e.target.value ? Number(e.target.value) : undefined })}>
+              <option value="">Any</option>
+              {collectionOptions(collections.data ?? []).map(({ c, depth }) => (
+                <option key={c.id} value={c.id}>
+                  {"  ".repeat(depth) + c.name} ({num(collCount.get(c.id) ?? 0)})
+                </option>
+              ))}
+            </select>
+          </Section>
+        )}
         <Section title="Folder" active={f.source != null}>
           <select aria-label="Folder" value={f.source ?? ""} onChange={(e) => set({ source: e.target.value ? Number(e.target.value) : undefined })}>
             <option value="">Any</option>

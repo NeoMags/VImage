@@ -784,11 +784,14 @@ def update_collection(conn: sqlite3.Connection, coll_id: int, changes: dict) -> 
 
 
 def delete_collection(conn: sqlite3.Connection, coll_id: int) -> None:
-    """Deletes the collection and the collections inside it. Photos are never deleted."""
+    """Deletes the collection. The collections inside it move up one level and are kept (B16 plan,
+    decision 3); photos are never deleted, only their membership of this collection."""
     _exists(conn, "collections", coll_id, "collection")
-    name = conn.execute("SELECT name FROM collections WHERE id = ?", (coll_id,)).fetchone()[0]
+    name, parent = conn.execute("SELECT name, parent_id FROM collections WHERE id = ?", (coll_id,)).fetchone()
+    moved = [r[0] for r in conn.execute("SELECT id FROM collections WHERE parent_id = ? ORDER BY id", (coll_id,))]
+    conn.execute("UPDATE collections SET parent_id = ? WHERE parent_id = ?", (parent, coll_id))
     conn.execute("DELETE FROM collections WHERE id = ?", (coll_id,))
-    audit(conn, "delete", "collection", coll_id, {"name": name}, None)
+    audit(conn, "delete", "collection", coll_id, {"name": name, "parent_id": parent}, {"moved_up": moved})
 
 
 def add_to_collection(conn: sqlite3.Connection, coll_id: int, asset_ids: list[int]) -> int:

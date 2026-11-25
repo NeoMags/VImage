@@ -6,6 +6,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { CollectionActions } from "../collections/CollectionActions";
+import { CollectionPicker } from "../collections/CollectionPicker";
+import { pathOf } from "../collections/tree";
 import { AssetDetail } from "../detail/AssetDetail";
 import { FilterPanel } from "../gallery/FilterPanel";
 import { activeCount, chipsFor, setFilters, useFilters } from "../gallery/filters";
@@ -52,8 +55,11 @@ function loadPrefs(): Prefs {
   }
 }
 
-export function Assets() {
+/** All photos, or one collection's photos when `collectionId` is given (B16). */
+export function Assets({ collectionId }: { collectionId?: number } = {}) {
   const [prefs, setPrefsState] = useState<Prefs>(loadPrefs);
+  const collections = useCollections();
+  const coll = collectionId == null ? undefined : collections.data?.find((c) => c.id === collectionId);
   const [hidden, setHidden] = useState(false);
   const setPrefs = (p: Partial<Prefs>) =>
     setPrefsState((old) => {
@@ -67,8 +73,17 @@ export function Assets() {
     });
   // Timeline is the date sort with month headers; other sorts have no months to show.
   const view: View = prefs.view === "timeline" && prefs.sort !== "date" ? "grid" : prefs.view;
-  const extra = useFilters();
-  const filter = useMemo<AssetFilter>(() => ({ ...extra, hidden }), [extra, hidden]);
+  const stored = useFilters();
+  // Inside a collection the collection itself is fixed; the other filters still apply.
+  const extra = useMemo(() => {
+    if (collectionId == null) return stored;
+    const { collection: _, ...rest } = stored;
+    return rest;
+  }, [stored, collectionId]);
+  const filter = useMemo<AssetFilter>(
+    () => ({ ...extra, ...(collectionId != null ? { collection: collectionId } : {}), hidden }),
+    [extra, hidden, collectionId],
+  );
   const filtered = activeCount(extra) > 0;
   const months = useAssetMonths(filter);
 
@@ -76,7 +91,11 @@ export function Assets() {
     <div className="assets-screen">
       <div className="screen-head">
         <h1 className="screen-title">
-          {hidden ? "Hidden photos" : "All photos"}
+          {collectionId != null
+            ? (hidden ? "Hidden in " : "") + (coll ? pathOf(collections.data ?? [], coll.id) : "Collection")
+            : hidden
+              ? "Hidden photos"
+              : "All photos"}
           {months.data ? <span className="muted"> · {num(months.data.total)}</span> : null}
         </h1>
         <label className="inline-field">
@@ -136,13 +155,18 @@ export function Assets() {
           Filters{filtered ? ` (${activeCount(extra)})` : ""}
         </Button>
       </div>
-      {filtered ? <FilterChips /> : null}
+      {coll ? <CollectionActions key={coll.id} coll={coll} /> : null}
+      {filtered ? <FilterChips skipCollection={collectionId != null} /> : null}
 
       <div className="assets-body">
-        {prefs.filtersOpen ? <FilterPanel filter={filter} onClose={() => setPrefs({ filtersOpen: false })} /> : null}
+        {prefs.filtersOpen ? (
+          <FilterPanel filter={filter} inCollection={collectionId != null} onClose={() => setPrefs({ filtersOpen: false })} />
+        ) : null}
         <div className="assets-main">
 
-      {months.isPending ? (
+      {collectionId != null && collections.isSuccess && !coll ? (
+        <EmptyState title="This collection no longer exists">It may have been deleted. Your photos are unchanged.</EmptyState>
+      ) : months.isPending ? (
         <LoadingRows rows={6} label="Loading your photos" />
       ) : months.isError ? (
         <ErrorView what="your photos" error={months.error} onRetry={() => void months.refetch()} />
@@ -152,6 +176,10 @@ export function Assets() {
             Clear filters
           </Button>
         </EmptyState>
+      ) : months.data.total === 0 && collectionId != null ? (
+        <EmptyState title={hidden ? "No hidden photos in this collection" : "This collection is empty"}>
+          {hidden ? "" : "In All photos, select photos and use “Add to collection…”."}
+        </EmptyState>
       ) : months.data.total === 0 ? (
         <EmptyState title={hidden ? "No hidden photos" : "No photos yet"}>
           {hidden
@@ -160,7 +188,7 @@ export function Assets() {
         </EmptyState>
       ) : (
         <Gallery
-          key={`${hidden}|${prefs.sort}|${prefs.order}|${JSON.stringify(extra)}`}
+          key={`${collectionId ?? ""}|${hidden}|${prefs.sort}|${prefs.order}|${JSON.stringify(extra)}`}
           filter={filter}
           months={months.data}
           updatedAt={months.dataUpdatedAt}
@@ -169,6 +197,7 @@ export function Assets() {
           view={view}
           cell={SIZES[prefs.size]}
           hiddenView={hidden}
+          collectionId={collectionId}
         />
       )}
         </div>
@@ -177,8 +206,13 @@ export function Assets() {
   );
 }
 
-function FilterChips() {
-  const f = useFilters();
+function FilterChips({ skipCollection = false }: { skipCollection?: boolean }) {
+  const all = useFilters();
+  const f = useMemo(() => {
+    if (!skipCollection) return all;
+    const { collection: _, ...rest } = all;
+    return rest;
+  }, [all, skipCollection]);
   const tags = useTags();
   const sources = useSources();
   const collections = useCollections();
@@ -213,9 +247,10 @@ interface GalleryProps {
   view: View;
   cell: number;
   hiddenView: boolean;
+  collectionId?: number;
 }
 
-function Gallery({ filter, months, updatedAt, sort, order, view, cell, hiddenView }: GalleryProps) {
+function Gallery({ filter, months, updatedAt, sort, order, view, cell, hiddenView, collectionId }: GalleryProps) {
   const api = useApi();
   const qc = useQueryClient();
   const thumbUrl = useThumbUrl();
@@ -375,7 +410,13 @@ function Gallery({ filter, months, updatedAt, sort, order, view, cell, hiddenVie
         </Notice>
       ) : null}
       {sel.ids.size ? (
-        <BulkBar count={sel.ids.size} hiddenView={hiddenView} onSend={sendBulk} onClear={() => setSel(Sel.EMPTY)} />
+        <BulkBar
+          count={sel.ids.size}
+          hiddenView={hiddenView}
+          collectionId={collectionId}
+          onSend={sendBulk}
+          onClear={() => setSel(Sel.EMPTY)}
+        />
       ) : null}
       <div className="gallery-wrap">
         <div
@@ -538,16 +579,17 @@ function Cell({
 function BulkBar({
   count,
   hiddenView,
+  collectionId,
   onSend,
   onClear,
 }: {
   count: number;
   hiddenView: boolean;
+  collectionId?: number;
   onSend: (change: Omit<BulkBody, "ids">, what: string) => Promise<void>;
   onClear: () => void;
 }) {
   const tags = useTags();
-  const collections = useCollections();
   const [tag, setTag] = useState("");
   const [busy, setBusy] = useState(false);
   const go = (change: Omit<BulkBody, "ids">, what: string) => {
@@ -580,24 +622,15 @@ function BulkBar({
       <Button size="sm" disabled={busy || !name} onClick={() => go({ remove_tags: [name] }, `Removed tag “${name}”`)}>
         Remove tag
       </Button>
-      {collections.data?.length ? (
-        <select
-          aria-label="Add to collection"
-          value=""
-          disabled={busy}
-          onChange={(e) => {
-            const id = Number(e.target.value);
-            const c = collections.data.find((x) => x.id === id);
-            if (c) go({ add_to_collection: id }, `Added to “${c.name}”`);
-          }}
-        >
-          <option value="">Add to collection…</option>
-          {collections.data.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+      <CollectionPicker
+        disabled={busy}
+        exclude={collectionId}
+        onPick={(id, name) => go({ add_to_collection: id }, `Added to “${name}”`)}
+      />
+      {collectionId != null ? (
+        <Button size="sm" disabled={busy} onClick={() => go({ remove_from_collection: collectionId }, "Removed from this collection")}>
+          Remove from collection
+        </Button>
       ) : null}
       <Button size="sm" disabled={busy} onClick={() => go({ hide: !hiddenView }, hiddenView ? "Unhidden" : "Hidden")}>
         {hiddenView ? "Unhide" : "Hide"}
