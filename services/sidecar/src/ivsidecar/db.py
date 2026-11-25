@@ -29,6 +29,9 @@ def connect(path: Path) -> sqlite3.Connection:
     sqlite_vec.load(conn)
     conn.enable_load_extension(False)
     conn.execute("PRAGMA journal_mode = WAL")
+    # NORMAL is the recommended level for WAL: no fsync per commit, still safe against a crash or
+    # kill of the app; only a power cut can lose the last commits, which the job queue redoes.
+    conn.execute("PRAGMA synchronous = NORMAL")
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 5000")
     return conn
