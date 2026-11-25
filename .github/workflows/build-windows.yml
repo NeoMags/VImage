@@ -69,7 +69,7 @@ jobs:
           $p.Kill()
           $health | ConvertTo-Json -Depth 6 | Tee-Object -FilePath health.json
           $size = "{0:N1}" -f ((Get-ChildItem dist/ivsidecar -Recurse | Measure-Object Length -Sum).Sum / 1MB)
-          "| Sidecar folder size | $size MB |`n| Process start to ready (cold) | $coldMs ms |" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          "| Sidecar folder size | $size MB |`n| Process start to ready (cold) | $coldMs ms |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
           if (-not $health.vips.ok -or -not $health.vips.thumbnail_selftest.ok) { throw "libvips not working in packaged build" }
           if ($health.db.schema_version -lt 1) { throw "migration not applied" }
           if (-not $health.exiftool.ok) { throw "ExifTool not working in packaged build" }
@@ -90,7 +90,7 @@ jobs:
       - name: Install silently, launch, check sidecar lifecycle
         run: |
           $inst = Get-ChildItem apps/desktop/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
-          "| Installer size | {0:N1} MB |" -f ($inst.Length / 1MB) | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          "| Installer size | {0:N1} MB |" -f ($inst.Length / 1MB) | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
           $dir = Join-Path $env:RUNNER_TEMP "ImageVaultInstall"
           Start-Process $inst.FullName -ArgumentList "/S", "/D=$dir" -Wait
           $app = Get-ChildItem $dir -Filter imagevault.exe -Recurse | Select-Object -First 1
@@ -101,12 +101,12 @@ jobs:
           $libMs = $sw.ElapsedMilliseconds
           Start-Sleep -Seconds 3
           $side = Get-Process ivsidecar -ErrorAction SilentlyContinue
-          "| App launch to library.db created | $libMs ms |`n| Sidecar processes while app runs | $(@($side).Count) |" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          "| App launch to library.db created | $libMs ms |`n| Sidecar processes while app runs | $(@($side).Count) |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
           if (-not (Test-Path $lib)) { throw "installed app did not start the sidecar (no library.db)" }
           Stop-Process -Id $proc.Id -Force
           Start-Sleep -Seconds 5
           $left = @(Get-Process ivsidecar -ErrorAction SilentlyContinue).Count
-          "| Sidecar processes 5 s after app force-killed | $left |" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          "| Sidecar processes 5 s after app force-killed | $left |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
           if ($left -ne 0) { throw "sidecar left running after app was killed" }
 
       - uses: actions/upload-artifact@v4
