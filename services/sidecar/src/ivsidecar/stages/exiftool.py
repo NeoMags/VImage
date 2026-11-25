@@ -24,6 +24,49 @@ class ExifToolError(RuntimeError):
     pass
 
 
+# ExifTool can write: tag assignments (-Tag=value), -o/-w output files, -overwrite_original and
+# friends. The engine only ever reads, so every argument list is checked before it is sent (B20).
+_READ_OPTIONS = {"-j", "-n", "-g", "-b", "-charset", "-api", "-execute"}
+_TAKES_VALUE = {"-charset", "-api"}
+_WRITE_OPTIONS = {
+    "-o",
+    "-out",
+    "-w",
+    "-w!",
+    "-w+",
+    "-overwrite_original",
+    "-overwrite_original_in_place",
+    "-tagsfromfile",
+    "-delete_original",
+    "-delete_original!",
+    "-restore_original",
+    "-geotag",
+    "-srcfile",
+    "-p",
+    "-k",
+    "-stay_open",
+}
+
+
+def assert_read_only(args: tuple[str, ...] | list[str]) -> None:
+    """Raises ExifToolError for any argument that could make ExifTool write a file."""
+    skip = False
+    for a in args:
+        if skip:
+            skip = False
+            continue
+        if not a.startswith("-"):
+            continue  # a file path
+        low = a.lower()
+        if low in _WRITE_OPTIONS or any(ch in a for ch in "=<>"):
+            raise ExifToolError(f"refusing a writing exiftool argument: {a}")
+        if low in _READ_OPTIONS:
+            skip = low in _TAKES_VALUE
+            continue
+        if not all(ch.isalnum() or ch in ":_-" for ch in a[1:]):
+            raise ExifToolError(f"refusing an unexpected exiftool argument: {a}")
+
+
 class ExifTool:
     def __init__(self, exe: str | None = None, timeout_s: float = 30.0):
         self.exe = exe or find_exiftool()
@@ -74,6 +117,7 @@ class ExifTool:
     # -- requests -----------------------------------------------------------
     def execute(self, *args: str) -> str:
         """Run one ExifTool command; returns its stdout text."""
+        assert_read_only(args)
         with self._lock:
             if self._proc is None or self._proc.poll() is not None:
                 self._start()
@@ -120,7 +164,9 @@ class ExifTool:
         kwargs = {"creationflags": _CREATE_NO_WINDOW} if os.name == "nt" else {}
         # Arguments go through an argfile on stdin, as UTF-8: on Windows, exiftool.exe (Perl)
         # receives command-line arguments in the ANSI code page, which mangles non-ASCII names.
-        args = "\n".join(["-b", f"-{tag}", "-charset", "filename=utf8", str(path)]) + "\n"
+        argv = ["-b", f"-{tag}", "-charset", "filename=utf8", str(path)]
+        assert_read_only(argv)
+        args = "\n".join(argv) + "\n"
         try:
             res = subprocess.run(
                 [self.exe, "-@", "-"],
