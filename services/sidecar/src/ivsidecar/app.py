@@ -10,9 +10,11 @@ import sys
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import __version__, api_status, handlers, probes, schemas, settings
@@ -25,12 +27,18 @@ from .watcher import FolderWatcher
 TAURI_ORIGINS = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"]
 
 
+def dev_origins() -> list[str]:
+    """IV_DEV_ORIGINS, honoured only outside the packaged exe (see allowed_origins)."""
+    if getattr(sys, "frozen", False):
+        return []
+    return [o.strip() for o in os.environ.get("IV_DEV_ORIGINS", "").split(",") if o.strip()]
+
+
 def allowed_origins() -> list[str]:
     """Pages allowed to call the API: the packaged app's webview only. A development run (not the
     packaged exe) also accepts IV_DEV_ORIGINS, e.g. the Vite dev server used by `tauri dev` and the
     UI's end-to-end test. The packaged build ignores it, so it cannot be widened on a user's PC."""
-    extra = [] if getattr(sys, "frozen", False) else os.environ.get("IV_DEV_ORIGINS", "").split(",")
-    return TAURI_ORIGINS + [o.strip() for o in extra if o.strip()]
+    return TAURI_ORIGINS + dev_origins()
 
 
 class NewSource(BaseModel):
@@ -71,6 +79,8 @@ def create_app(
     status_routes, ws_routes = api_status.build_router(conn, db_lock, token, origins, queue)
     app.include_router(status_routes, dependencies=[Depends(require_token)])
     app.include_router(ws_routes)  # checks the token itself (subprotocol)
+    if dev_origins():
+        _install_dev_thumbs(app, conn, token)
 
     @app.get("/v1/health", dependencies=[Depends(require_token)])
     def health() -> schemas.Health:
@@ -257,3 +267,20 @@ def create_app(
         return body
 
     return app
+
+
+def _install_dev_thumbs(app: FastAPI, conn: sqlite3.Connection, token: str) -> None:
+    """Development only (never in the packaged exe): serves thumbnails over HTTP so the UI can show them
+    in a plain browser, where the Tauri asset protocol does not exist. <img> cannot send a header, so the
+    token travels as ?t=. Only files inside <library>/thumbs are served."""
+    library_dir = Path(conn.execute("PRAGMA database_list").fetchone()[2]).parent
+    thumbs = (library_dir / "thumbs").resolve()
+
+    @app.get("/dev/thumbs/{rel_path:path}", include_in_schema=False)
+    def dev_thumb(rel_path: str, t: str = "") -> FileResponse:
+        if not hmac.compare_digest(t.encode(), token.encode()):
+            raise HTTPException(status_code=401, detail="invalid or missing token")
+        path = (library_dir / rel_path).resolve()
+        if not path.is_relative_to(thumbs) or not path.is_file():
+            raise HTTPException(status_code=404, detail="no such thumbnail")
+        return FileResponse(path, media_type="image/webp")

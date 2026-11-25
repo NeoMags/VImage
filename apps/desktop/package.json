@@ -16,6 +16,7 @@
     "@imagevault/shared-types": "workspace:*",
     "@imagevault/ui": "workspace:*",
     "@tanstack/react-query": "5.107.1",
+    "@tanstack/react-virtual": "3.14.26",
     "@tauri-apps/api": "2.12.4",
     "@tauri-apps/plugin-dialog": "2.8.4",
     "@tauri-apps/plugin-opener": "2.7.2",

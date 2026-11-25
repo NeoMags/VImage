@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import datetime as dt
 import json
 import os
 import time
@@ -123,6 +124,7 @@ def test_list_sort_filters_and_keyset_pagination(api):
     a = page["items"][0]
     assert set(a) >= {"id", "uid", "kind", "date", "thumb_path", "availability", "is_favorite"}
     assert a["availability"] == "present" and a["thumb_path"].startswith("thumbs/")
+    assert a["file_name"].startswith("img") and a["file_name"].endswith(".jpg")  # rel_path dirNN/imgNNN.jpg
     dates = [x["date"] for x in _get(client, "/v1/assets", limit=500)["items"]]
     assert dates == sorted(dates, reverse=True)
     # no capture date -> file modified date (decision 4)
@@ -142,6 +144,44 @@ def test_list_sort_filters_and_keyset_pagination(api):
     cur = _get(client, "/v1/assets", limit=10)["next_cursor"]
     assert client.get("/v1/assets", headers=AUTH, params={"cursor": cur, "sort": "size"}).status_code == 422
     assert client.get("/v1/assets", headers=AUTH, params={"cursor": "garbage!!"}).status_code == 422
+
+
+def test_month_counts_match_the_list_for_every_filter(api):
+    conn, client = api
+    _seed(conn, 120)
+    conn.execute("UPDATE assets SET taken_at = '2019-05-02T10:00:00' WHERE id <= 10")
+    conn.execute("UPDATE assets SET is_favorite = 1 WHERE id % 3 = 0")
+    conn.execute("UPDATE assets SET is_hidden = 1 WHERE id = 5")
+    for params in (
+        {},
+        {"kind": "screenshot"},
+        {"favorite": "true"},
+        {"hidden": "true"},
+        {"from": "2024-01-01", "to": "2024-01-31"},
+        {"availability": "present"},
+    ):
+        out = _get(client, "/v1/assets:months", **params)
+        ids = _walk(client, **params)
+        assert out["total"] == len(ids) == sum(m["count"] for m in out["months"]), params
+        months = [m["month"] for m in out["months"]]
+        assert months == sorted(months, reverse=True)  # newest first
+        for m in out["months"]:  # each month's count = what the list returns for that month
+            y, mo = map(int, m["month"].split("-"))
+            end = f"{y + mo // 12}-{mo % 12 + 1:02d}-01"
+            last = (dt.date.fromisoformat(end) - dt.timedelta(days=1)).isoformat()
+            got = _walk(
+                client,
+                **{
+                    **params,
+                    "from": max(params.get("from", ""), f"{m['month']}-01"),
+                    "to": min(params.get("to", "9999"), last),
+                },
+            )
+            assert len(got) == m["count"], (params, m)
+    out = _get(client, "/v1/assets:months")
+    assert {m["month"] for m in out["months"]} == {"2019-05", "2024-01", "2023-06"}
+    assert client.get("/v1/assets:months", headers=AUTH, params={"availability": "nope"}).status_code == 422
+    assert client.get("/v1/assets:months").status_code == 401
 
 
 def test_pagination_is_stable_while_photos_arrive(api):

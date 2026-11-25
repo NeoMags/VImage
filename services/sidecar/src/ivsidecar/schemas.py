@@ -51,11 +51,24 @@ class AssetSummary(Out):
     thumb_path: str | None
     """Relative to the library folder; the UI loads it through the shell's thumbnail scope."""
     availability: Availability
+    file_name: str | None
+    """Name of the file in one of its locations (a present one first); null if it has none."""
 
 
 class AssetPage(Out):
     items: list[AssetSummary]
     next_cursor: str | None
+
+
+class MonthCount(Out):
+    month: str | None
+    """YYYY-MM of the asset's date; null only for assets with no date at all."""
+    count: int
+
+
+class AssetMonths(Out):
+    total: int
+    months: list[MonthCount]
 
 
 class WithOrigin(Out):
@@ -151,6 +164,7 @@ class AssetDetail(Out):
     is_hidden: bool
     thumb_path: str | None
     availability: Availability
+    file_name: str | None
     file_modified_at: str | None
     error: str | None
     updated_at: str

@@ -9,6 +9,8 @@ type S = components["schemas"];
 export type AssetSummary = S["AssetSummary"];
 export type AssetPage = S["AssetPage"];
 export type AssetDetail = S["AssetDetail"];
+export type AssetMonths = S["AssetMonths"];
+export type MonthCount = S["MonthCount"];
 export type AssetPatch = S["AssetPatch"];
 export type BulkBody = S["BulkBody"];
 export type BulkResult = S["BulkResult"];
@@ -55,3 +57,6 @@ export interface Problem {
   detail: string;
   errors?: { loc: string[]; msg: string }[];
 }
+
+/** The filters shared by GET /v1/assets and GET /v1/assets:months (no paging or sort). */
+export type AssetFilter = NonNullable<paths["/v1/assets:months"]["get"]["parameters"]["query"]>;

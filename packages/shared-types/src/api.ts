@@ -177,6 +177,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/assets:months": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Asset Months
+         * @description Assets per month of their date (newest first), with the same filters as GET /assets.
+         */
+        get: operations["asset_months_v1_assets_months_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/collections": {
         parameters: {
             query?: never;
@@ -613,6 +633,8 @@ export interface components {
             error: string | null;
             /** File Modified At */
             file_modified_at: string | null;
+            /** File Name */
+            file_name: string | null;
             /** Height */
             height: number | null;
             /** Id */
@@ -708,6 +730,13 @@ export interface components {
             /** Orientation */
             orientation: number | null;
         };
+        /** AssetMonths */
+        AssetMonths: {
+            /** Months */
+            months: components["schemas"]["MonthCount"][];
+            /** Total */
+            total: number;
+        };
         /** AssetPage */
         AssetPage: {
             /** Items */
@@ -739,6 +768,8 @@ export interface components {
             date: string | null;
             /** Duration Ms */
             duration_ms: number | null;
+            /** File Name */
+            file_name: string | null;
             /** Height */
             height: number | null;
             /** Id */
@@ -1082,6 +1113,13 @@ export interface components {
              * @enum {string}
              */
             state: "present" | "moved" | "missing" | "unreachable";
+        };
+        /** MonthCount */
+        MonthCount: {
+            /** Count */
+            count: number;
+            /** Month */
+            month: string | null;
         };
         /** NewCollection */
         NewCollection: {
@@ -1842,6 +1880,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    asset_months_v1_assets_months_get: {
+        parameters: {
+            query?: {
+                hidden?: boolean;
+                kind?: string[] | null;
+                status?: string[] | null;
+                mime?: string | null;
+                from?: string | null;
+                to?: string | null;
+                source?: number | null;
+                tag?: number[] | null;
+                collection?: number | null;
+                favorite?: boolean | null;
+                reviewed?: boolean | null;
+                availability?: ("present" | "missing" | "unreachable") | null;
+                min_w?: number | null;
+                min_h?: number | null;
+            };
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetMonths"];
                 };
             };
             /** @description Validation Error */

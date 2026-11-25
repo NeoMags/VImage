@@ -14,8 +14,8 @@ export interface Engine {
   stop: () => Promise<void>;
 }
 
-export async function startEngine(): Promise<Engine> {
-  const library = mkdtempSync(join(tmpdir(), "iv-e2e-lib-"));
+/** Starts the engine on a new empty library, or on `library` when given (e.g. a synthetic one). */
+export async function startEngine(library = mkdtempSync(join(tmpdir(), "iv-e2e-lib-"))): Promise<Engine> {
   const token = "e2e".padEnd(32, "x");
   const proc: ChildProcess = spawn("uv", ["run", "--quiet", "python", "-m", "ivsidecar", "--library", library], {
     cwd: SIDECAR_DIR,
@@ -52,4 +52,31 @@ for i in range(${n}):
   const out = spawnSync("uv", ["run", "--quiet", "python", "-c", script, dir], { cwd: SIDECAR_DIR, encoding: "utf8" });
   if (out.status !== 0) throw new Error(out.stderr);
   return dir;
+}
+
+/** Like makePhotos, but file dates spread one month apart going back from today (no EXIF date,
+ * so the engine dates them by the file's modified time). */
+export function makeDatedPhotos(n: number, perMonth = 2): string {
+  const dir = makePhotos(n);
+  const script = `
+import os, sys, time
+for i in range(${n}):
+    t = time.time() - (i // ${perMonth}) * 31 * 86400
+    os.utime(f"{sys.argv[1]}/photo_{i:02d}.jpg", (t, t))
+`;
+  const out = spawnSync("uv", ["run", "--quiet", "python", "-c", script, dir], { cwd: SIDECAR_DIR, encoding: "utf8" });
+  if (out.status !== 0) throw new Error(out.stderr);
+  return dir;
+}
+
+/** A library of `count` synthetic assets (rows and shared thumbnails only) for performance runs. */
+export function makeSyntheticLibrary(count: number): string {
+  const library = mkdtempSync(join(tmpdir(), "iv-e2e-perf-"));
+  const script = resolve(import.meta.dirname, "perf/synthetic_library.py");
+  const out = spawnSync("uv", ["run", "--quiet", "python", script, library, String(count)], {
+    cwd: SIDECAR_DIR,
+    encoding: "utf8",
+  });
+  if (out.status !== 0) throw new Error(out.stderr);
+  return library;
 }
