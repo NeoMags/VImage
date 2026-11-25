@@ -3,7 +3,7 @@
 ## 1. Stages
 | # | Stage | Phase | Engine | Output |
 |---|---|---|---|---|
-| 1 | identify | D1 | magic-byte sniff (extension only to tell TIFF-based RAW formats apart) | mime, kind, raw flag, unsupported |
+| 1 | identify | D1 | magic-byte sniff (extension only to tell TIFF-based RAW formats apart) | mime, kind, raw flag; unsupported files stop here (not hashed, no asset; `file_locations.mime_type` keeps the type) |
 | 2 | metadata | D1 | ExifTool (bundled exe, one persistent `-stay_open` process) | `asset_metadata`, dates, GPS, raw JSON |
 | 3 | hash | D1 | SHA-256 streamed in 1 MB chunks | `sha256` (asset identity) |
 | 4 | thumbnail | D1 | pyvips shrink-on-load + auto-rotate → sRGB; HEIC/AVIF/BMP via Pillow + pillow-heif (libvips' libheif has no HEVC, verified 2026-11-25); RAW via embedded JPEG preview (ExifTool) | WebP `thumb_512` + `thumb_256`; pHash (DCT on 32×32 grey of the oriented image) → `vec_phash`; `preview_1600` on demand later |

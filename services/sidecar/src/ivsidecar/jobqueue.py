@@ -271,10 +271,10 @@ class JobQueue:
             c.execute("BEGIN IMMEDIATE")
             try:
                 if outcome == "ok":
-                    warning = handlers.apply_result(c, job, data)
+                    status, note = handlers.apply_result(c, job, data)
                     c.execute(
-                        f"UPDATE jobs SET status = 'succeeded', finished_at = {NOW}, last_error = ? WHERE id = ?",
-                        (warning, jid),
+                        f"UPDATE jobs SET status = ?, finished_at = {NOW}, last_error = ? WHERE id = ?",
+                        (status, note, jid),
                     )
                 elif outcome == "fatal":
                     self._give_up(c, job, "failed", str(data))

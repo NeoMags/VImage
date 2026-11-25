@@ -62,15 +62,19 @@ def register_file(
     size_bytes: int,
     mtime: str,
     priority: int = 100,
+    changed: bool = False,
 ) -> int:
-    """Record a found file and queue stage 1 for it. Returns the location id. (B6's scanner calls this.)"""
+    """Record a found (or changed) file and queue stage 1 for it. Returns the location id.
+
+    changed=True: same file_key, new size/mtime: stage 1 runs again (and so does hash).
+    """
     row = conn.execute(
         "INSERT INTO file_locations (source_id, file_key, rel_path, size_bytes, mtime) VALUES (?, ?, ?, ?, ?) "
         "ON CONFLICT (source_id, file_key) DO UPDATE SET rel_path=excluded.rel_path, state='present', "
-        f"last_seen_at={NOW} RETURNING id",
+        f"size_bytes=excluded.size_bytes, mtime=excluded.mtime, last_seen_at={NOW} RETURNING id",
         (source_id, file_key, rel_path, size_bytes, mtime),
     ).fetchone()
-    enqueue(conn, "identify", location_id=row[0], priority=priority)
+    enqueue(conn, "identify", location_id=row[0], priority=priority, requeue=changed)
     return row[0]
 
 
@@ -110,20 +114,28 @@ def build_payload(conn: sqlite3.Connection, job: sqlite3.Row, max_pixels: int | 
 # --------------------------------------------------------------------------- results
 
 
-def apply_result(conn: sqlite3.Connection, job: sqlite3.Row, data: dict | None) -> str | None:
-    """Write a successful stage result and queue the next stage. Returns a warning to keep on the job."""
+def apply_result(conn: sqlite3.Connection, job: sqlite3.Row, data: dict | None) -> tuple[str, str | None]:
+    """Write a successful stage result and queue the next stage.
+
+    Returns the job's final status ('succeeded' or 'skipped') and a note to keep on the job.
+    """
     stage, prio = job["stage"], job["priority"]
     if stage == "identify":
         conn.execute("UPDATE file_locations SET mime_type = ? WHERE id = ?", (data["mime"], job["location_id"]))
-        enqueue(conn, "hash", location_id=job["location_id"], priority=prio)
-        return None
+        if not data["supported"]:
+            # Not hashed: reading a large unsupported file (archive, PDF, PSD) in full would be
+            # wasted work. The location keeps its mime type, so the UI can list these files.
+            return "skipped", f"unsupported: {data['mime']}"
+        # requeue: when identify runs again because the file changed, the hash must run again too
+        enqueue(conn, "hash", location_id=job["location_id"], priority=prio, requeue=True)
+        return "succeeded", None
     if stage == "hash":
-        return _apply_hash(conn, job, data)
+        return "succeeded", _apply_hash(conn, job, data)
     if stage == "metadata":
-        return _apply_metadata(conn, job, data)
+        return "succeeded", _apply_metadata(conn, job, data)
     if stage == "thumbnail":
         _apply_thumbnail(conn, job, data)
-        return None
+        return "succeeded", None
     raise ValueError(f"no result handler for stage {stage}")
 
 
