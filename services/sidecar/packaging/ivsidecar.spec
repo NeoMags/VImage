@@ -28,7 +28,8 @@ for path in glob.glob(os.path.join(site, "pillow_heif.libs", "*")):
 # uvicorn picks its protocol layers by import string at run time (WebSockets for /v1/events)
 hiddenimports += collect_submodules("uvicorn") + collect_submodules("websockets")
 
-for pkg in ("sqlite_vec", "pyvips", "pillow_heif"):
+# OCR (K1): RapidOCR ships its ONNX models and YAML configs as package data.
+for pkg in ("sqlite_vec", "pyvips", "pillow_heif", "rapidocr", "onnxruntime"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

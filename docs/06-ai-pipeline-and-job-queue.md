@@ -7,7 +7,7 @@
 | 2 | metadata | D1 | ExifTool (bundled exe, one persistent `-stay_open` process) | `asset_metadata`, dates, GPS, raw JSON |
 | 3 | hash | D1 | SHA-256 streamed in 1 MB chunks | `sha256` (asset identity) |
 | 4 | thumbnail | D1 | pyvips shrink-on-load + auto-rotate → sRGB; HEIC/AVIF/BMP via Pillow + pillow-heif (libvips' libheif has no HEVC, verified 2026-11-25); RAW via embedded JPEG preview (ExifTool) | WebP `thumb_512` + `thumb_256`; pHash (DCT on 32×32 grey of the oriented image) → `vec_phash`; `preview_1600` on demand later |
-| 5 | ocr | D2 | PaddleOCR (ONNX Runtime) primary; Tesseract fallback | `extracted_text`, `text_regions` |
+| 5 | ocr | D2 | RapidOCR 3.10 (PaddleOCR PP-OCRv6 small det/rec, ONNX Runtime, models bundled); Tesseract only if needed | `extracted_text`, `text_regions` |
 | 6 | classify | D2–D3 | rules first (screenshot dims, no EXIF camera, UI-text density), then CLIP zero-shot vs taxonomy prompts | `asset_categories` (ai, confidence) |
 | 7 | entities | D2 | regex + validators (`phonenumbers`, URL/email parsers, date parser), code/command/error heuristics | `entities` linked to `text_regions` |
 | 8 | knowledge | D2 | template card from OCR + entities + category (no LLM needed) | `knowledge_cards` |
@@ -64,3 +64,12 @@ Each output row stores engine + version; `pipeline_version` lets a model upgrade
 
 ## 6. Costs
 All engines are free/open source; compute is your PC. No per-image charges. Licences: see doc 09.
+
+## 7. K1 OCR spike results (2026-11-25)
+`ivsidecar --ocr-bench DIR|synthetic` (read-only) reports speed and, where `image.png.txt` holds the true text, accuracy.
+| Where | Images | Accuracy | Speed (CPU) |
+|---|---|---|---|
+| Linux build container, 4 cores | 40 synthetic screenshots (light/dark, 12–28 px, PNG + JPEG) | CER 0.30 %, WER 0.91 %, 85 % exact | median 1.44 s/image, 0.64 images/s |
+| Windows CI runner (packaged exe) | same | see the build summary | see the build summary |
+| Neo's PC, real screenshots | — | not yet measured | not yet measured |
+Licences verified from the wheel: RapidOCR Apache-2.0; PP-OCRv6 weights Apache-2.0 (MODEL_LICENSES.md).
