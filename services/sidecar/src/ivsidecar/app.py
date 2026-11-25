@@ -1,4 +1,4 @@
-"""Localhost API. Spike scope: /v1/health only."""
+"""Localhost API (doc 04). Every route requires the per-launch bearer token."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import time
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import __version__, probes
+from . import __version__, probes, settings
 
 # Origins used by Tauri 2 webviews (Windows uses http://tauri.localhost).
 TAURI_ORIGINS = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"]
@@ -47,5 +47,14 @@ def create_app(conn: sqlite3.Connection, token: str, started_at: float) -> FastA
             "heif": probes.heif_info(),
             "exiftool": probes.exiftool_info(),
         }
+
+    @app.get("/v1/settings/resources", dependencies=[Depends(require_token)])
+    def get_resources() -> settings.Resources:
+        return settings.load(conn, "resources")
+
+    @app.put("/v1/settings/resources", dependencies=[Depends(require_token)])
+    def put_resources(body: settings.Resources) -> settings.Resources:
+        settings.save(conn, "resources", body)
+        return body
 
     return app

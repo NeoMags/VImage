@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import socket
 import sys
@@ -16,14 +17,19 @@ from pathlib import Path
 
 import uvicorn
 
-from . import db
+from . import __version__, db, logs
 from .app import create_app
 from .watchdog import watch_parent
 
+log = logging.getLogger("ivsidecar")
+
 
 def default_library_dir() -> Path:
+    # Kept apart from the per-user install folder (%LOCALAPPDATA%\\ImageVault) so program files
+    # and library data never mix. The desktop shell passes --library explicitly; this default
+    # only matters when the sidecar is run on its own.
     base = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
-    return Path(base) / "ImageVault"
+    return Path(base) / "ImageVault" / "Library"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -38,6 +44,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     started = time.time()
+    logs.setup(args.library / "logs")
+    log.info("starting ivsidecar %s, library %s", __version__, args.library)
     parent = os.environ.get("IV_PARENT_PID")
     if parent and parent.isdigit():
         watch_parent(int(parent))
