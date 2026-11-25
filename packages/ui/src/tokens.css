@@ -1,0 +1,104 @@
+/* Design tokens. Light is the default; dark follows Windows unless the user picked a theme. */
+:root {
+  --iv-font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --iv-font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --iv-text-xs: 12px;
+  --iv-text-sm: 13px;
+  --iv-text-md: 14px;
+  --iv-text-lg: 18px;
+  --iv-text-xl: 26px;
+  --iv-space-1: 4px;
+  --iv-space-2: 8px;
+  --iv-space-3: 12px;
+  --iv-space-4: 16px;
+  --iv-space-5: 24px;
+  --iv-space-6: 32px;
+  --iv-radius: 6px;
+  --iv-radius-lg: 10px;
+
+  --iv-bg: #f6f7f9;
+  --iv-surface: #ffffff;
+  --iv-surface-2: #eef0f3;
+  --iv-border: #dcdfe4;
+  --iv-text: #1b1f24;
+  --iv-text-muted: #5b6470;
+  --iv-accent: #2f6fdf;
+  --iv-accent-text: #ffffff;
+  --iv-ok: #1e7f4f;
+  --iv-warn: #a35f00;
+  --iv-danger: #c4302b;
+  --iv-info: #2f6fdf;
+  --iv-focus: #2f6fdf;
+  --iv-shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 2px 8px rgb(0 0 0 / 6%);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --iv-bg: #15171b;
+    --iv-surface: #1d2025;
+    --iv-surface-2: #262a30;
+    --iv-border: #343941;
+    --iv-text: #e8eaed;
+    --iv-text-muted: #9aa3ae;
+    --iv-accent: #5b93f5;
+    --iv-accent-text: #0b1220;
+    --iv-ok: #4cc38a;
+    --iv-warn: #e2a33b;
+    --iv-danger: #f2716b;
+    --iv-info: #5b93f5;
+    --iv-focus: #7aa7ff;
+    --iv-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --iv-bg: #15171b;
+  --iv-surface: #1d2025;
+  --iv-surface-2: #262a30;
+  --iv-border: #343941;
+  --iv-text: #e8eaed;
+  --iv-text-muted: #9aa3ae;
+  --iv-accent: #5b93f5;
+  --iv-accent-text: #0b1220;
+  --iv-ok: #4cc38a;
+  --iv-warn: #e2a33b;
+  --iv-danger: #f2716b;
+  --iv-info: #5b93f5;
+  --iv-focus: #7aa7ff;
+  --iv-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--iv-bg);
+  color: var(--iv-text);
+  font: var(--iv-text-md) / 1.45 var(--iv-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--iv-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

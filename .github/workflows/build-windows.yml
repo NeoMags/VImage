@@ -98,18 +98,19 @@ jobs:
           if (-not $qr.ok) { throw "job queue self-test failed in packaged build: $q" }
           if ($qr.observer -ne "WindowsApiObserver") { throw "folder watcher fell back to $($qr.observer) in packaged build" }
 
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri
       - name: Build installer (Tauri, NSIS)
-        working-directory: apps/desktop
         run: |
-          npm ci
-          npx tauri build
+          pnpm install --frozen-lockfile
+          pnpm --filter @imagevault/desktop tauri build
 
       - name: Install silently, launch, check sidecar lifecycle
         run: |
@@ -129,6 +130,13 @@ jobs:
           $timeline = Join-Path $env:LOCALAPPDATA "ImageVault/Library/logs/startup.log"
           if (Test-Path $timeline) { "Startup timeline:"; Get-Content $timeline } else { "no startup.log at $timeline" }
           if (-not (Test-Path $lib)) { throw "installed app did not start the sidecar (no library.db)" }
+          # WebView2 starts cold on a CI runner (the B10 run showed ~9 s before the window existed), so
+          # wait for the page instead of checking once.
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          while (-not (Select-String -Path $timeline -Pattern "page load Finished" -Quiet -ErrorAction SilentlyContinue) -and $sw.ElapsedMilliseconds -lt 60000) { Start-Sleep -Milliseconds 250 }
+          $loaded = Select-String -Path $timeline -Pattern "^\s*(\d+) ms  page load Finished" | Select-Object -First 1
+          if (-not $loaded) { Get-Content $timeline; throw "the UI page did not load within 60 s" }
+          "| App launch to UI page loaded | $($loaded.Matches[0].Groups[1].Value) ms |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
 
           # B10: engine crash -> the shell restarts it (new process, new port) within 5 s
           # the engine is the ivsidecar.exe started by the app (job workers are its children)
@@ -167,7 +175,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: imagevault-windows-spike
+          name: imagevault-windows-installer
           path: |
             apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
             services/sidecar/health.json

@@ -36,7 +36,7 @@ describe("planFor / applyPlan", () => {
     ]);
     expect(plan.all).toBe(false);
     expect(plan.invalidate).toEqual([
-      keys.asset.one(3), keys.asset.one(9), keys.assets.all, keys.stats, keys.jobs.all, keys.jobStats, keys.health, keys.tags,
+      keys.asset.one(3), keys.asset.one(9), keys.assets.all, keys.stats, keys.jobs.all, keys.jobStats, keys.tags,
     ]);
     expect(planFor([{ type: "resync" }]).all).toBe(true);
   });

@@ -51,6 +51,37 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  ui-e2e:
+    name: UI end-to-end (Chromium + real engine)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install uv==0.11.32
+      - run: sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl
+      - run: uv sync --locked
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @imagevault/desktop exec playwright install --with-deps chromium
+      - name: First run, live updates, remove folder
+        working-directory: apps/desktop
+        env:
+          IV_E2E_SHOTS: ${{ runner.temp }}/screens
+        run: pnpm e2e --trace off
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-screens
+          path: ${{ runner.temp }}/screens
+          if-no-files-found: ignore
+
   rust:
     name: Desktop shell check (Linux)
     runs-on: ubuntu-latest
@@ -65,7 +96,9 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri
       - name: Placeholder sidecar folder (resources must exist at compile time)
-        run: mkdir -p services/sidecar/dist/ivsidecar && touch services/sidecar/dist/ivsidecar/.keep
+        run: |
+          mkdir -p services/sidecar/dist/ivsidecar && touch services/sidecar/dist/ivsidecar/.keep
+          mkdir -p apps/desktop/dist && echo '<!doctype html>' > apps/desktop/dist/index.html  # UI is built and tested in the ui jobs
       - working-directory: apps/desktop/src-tauri
         run: |
           cargo fmt --check
