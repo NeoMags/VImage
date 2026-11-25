@@ -48,3 +48,13 @@ Folders kept in sync by OneDrive/Google Drive/Dropbox desktop clients are just l
 
 ## 6. Tests required for D1 sign-off
 Rename/move storm (10k files), drive unplug mid-scan and reconnect under a new letter, kill -9 during scan and during processing, 100k-file initial index (time + RAM on Neo's PC), read-only fixture folder proving no writes to sources.
+
+## Read-only guarantee, tested (B20)
+
+`services/sidecar/tests/test_readonly.py` runs a real engine and its worker processes over the 50-file fixture folder made read-only (POSIX: no write bits; Windows: read-only attribute), on Ubuntu and Windows CI. It goes through the full scan and every stage, 1600 px previews, reveal, every edit the API offers, a new file seen by the watcher, a full rescan and source removal. It fails if:
+
+- the audit hook `tests/readonly_audit/sitecustomize.py`, loaded into every engine process through `PYTHONPATH`, records a write-mode `open`, or `remove`/`rename`/`replace`/`mkdir`/`rmdir`/`utime`/`chmod`/`shutil` move or copy, under the source folder;
+- the folder's paths, sizes, mtimes or SHA-256 differ before and after (this covers native code the hook cannot see: libvips, ExifTool);
+- any job failed with a permission error.
+
+ExifTool gets every argument list through `assert_read_only` first, which refuses tag assignments (`-Tag=…`, `-Tag<…`) and the writing options (`-o`, `-w`, `-overwrite_original`, `-tagsFromFile`, `-geotag`, …). Not checked: last-access times, which the OS updates on reads.
