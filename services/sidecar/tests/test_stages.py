@@ -169,7 +169,9 @@ def test_raw_preview_path_uses_embedded_jpeg(tmp_path, exiftool):
     exe = find_exiftool()
     import subprocess
 
-    subprocess.run([exe, "-q", "-overwrite_original", f"-ThumbnailImage<={thumb}", str(f)], check=True)
+    subprocess.run(
+        [exe, "-q", "-charset", "filename=utf8", "-overwrite_original", f"-ThumbnailImage<={thumb}", str(f)], check=True
+    )
     img, w, h = _load_raw_preview(f, exiftool, orientation=6)
     assert (w, h) == (120, 160)  # embedded 160x120 preview, rotated by orientation 6
 

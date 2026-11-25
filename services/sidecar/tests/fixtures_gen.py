@@ -53,7 +53,9 @@ def _exif(path: Path, *assignments: str) -> None:
     exe = find_exiftool()
     if not exe:
         raise RuntimeError("exiftool is required to build fixtures")
-    subprocess.run([exe, "-q", "-overwrite_original", "-n", *assignments, str(path)], check=True)
+    subprocess.run(
+        [exe, "-q", "-charset", "filename=utf8", "-overwrite_original", "-n", *assignments, str(path)], check=True
+    )
 
 
 def build(dest: Path) -> list[Case]:  # noqa: PLR0915 - a flat list of fixtures reads best
