@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import __version__, api_status, handlers, probes, settings
+from . import __version__, api_status, handlers, probes, schemas, settings
 from . import scanner as scan_mod
 from .api_library import build_router
 from .jobqueue import JobQueue
@@ -61,7 +61,7 @@ def create_app(
     app.include_router(ws_routes)  # checks the token itself (subprotocol)
 
     @app.get("/v1/health", dependencies=[Depends(require_token)])
-    def health() -> dict:
+    def health() -> schemas.Health:
         with db_lock:
             jobs = handlers.stats(conn)["jobs"]
         return {
@@ -101,23 +101,23 @@ def create_app(
         return queue
 
     @app.get("/v1/jobs/stats", dependencies=[Depends(require_token)])
-    def job_stats() -> dict:
+    def job_stats() -> schemas.JobStats:
         out = handlers.stats(conn)
         out["queue"] = queue.state() if queue else None
         return out
 
     @app.post("/v1/jobs/pause", dependencies=[Depends(require_token)])
-    def pause_jobs() -> dict:
+    def pause_jobs() -> schemas.Paused:
         need_queue().set_paused(True)
         return {"paused": True}
 
     @app.post("/v1/jobs/resume", dependencies=[Depends(require_token)])
-    def resume_jobs() -> dict:
+    def resume_jobs() -> schemas.Paused:
         need_queue().set_paused(False)
         return {"paused": False}
 
     @app.post("/v1/jobs/retry", dependencies=[Depends(require_token)])
-    def retry_jobs() -> dict:
+    def retry_jobs() -> schemas.Requeued:
         return {"requeued": need_queue().retry_failed()}
 
     # ---------------------------------------------------------------- sources (B6)
@@ -147,7 +147,7 @@ def create_app(
     )
 
     @app.get("/v1/sources", dependencies=[Depends(require_token)])
-    def list_sources() -> list[dict]:
+    def list_sources() -> list[schemas.Source]:
         running = set(scanner.running()) if scanner else set()
         watching = set(watcher.watched()) if watcher else set()
         out = []
@@ -182,7 +182,7 @@ def create_app(
         return out
 
     @app.post("/v1/sources", status_code=201, dependencies=[Depends(require_token)])
-    def add_source(body: NewSource) -> dict:
+    def add_source(body: NewSource) -> schemas.SourceAdded:
         try:
             sid = scan_mod.add_source(conn, body.path, need_scanner().library_dir, body.display_name)
         except scan_mod.SourceError as e:
@@ -193,22 +193,22 @@ def create_app(
         return {"id": sid, "scan_run_id": run_id}
 
     @app.post("/v1/sources/{source_id}/scan", dependencies=[Depends(require_token)])
-    def scan_source(source_id: int) -> dict:
+    def scan_source(source_id: int) -> schemas.ScanStarted:
         return {"scan_run_id": start_scan(source_id)}
 
     @app.post("/v1/sources/{source_id}/scan/cancel", dependencies=[Depends(require_token)])
-    def cancel_scan(source_id: int) -> dict:
+    def cancel_scan(source_id: int) -> schemas.ScanCancelled:
         return {"cancelled": need_scanner().cancel(source_id)}
 
     @app.get("/v1/sources/{source_id}/removal", dependencies=[Depends(require_token)])
-    def removal_preview(source_id: int) -> dict:
+    def removal_preview(source_id: int) -> schemas.RemovalPreview:
         try:
             return scan_mod.removal_preview(conn, source_id)
         except scan_mod.SourceError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
 
     @app.delete("/v1/sources/{source_id}", dependencies=[Depends(require_token)])
-    def remove_source(source_id: int, confirm: int = Query(ge=0)) -> dict:
+    def remove_source(source_id: int, confirm: int = Query(ge=0)) -> schemas.SourceRemoved:
         """confirm = the assets_only_here count from GET .../removal that the user agreed to."""
         sc = need_scanner()
         try:

@@ -181,5 +181,13 @@ def test_10k_file_scan_sends_few_messages(tmp_path):
         sc.stop()
         for sub_id in list(bus._subs):
             bus.unsubscribe(sub_id)
-        loop.call_soon_threadsafe(loop.stop)
+
+        def shut_down():  # cancel the consumer first, so it does not outlive its loop
+            for task in asyncio.all_tasks(loop):
+                task.cancel()
+            loop.call_soon(loop.stop)
+
+        loop.call_soon_threadsafe(shut_down)
+        t.join(5)
+        loop.close()
         conn.close()

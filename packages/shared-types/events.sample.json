@@ -1,0 +1,61 @@
+[
+  {
+    "type": "hello",
+    "flush_ms": 250
+  },
+  {
+    "type": "batch",
+    "events": [
+      {
+        "type": "asset.updated",
+        "ids": [
+          1,
+          3
+        ]
+      },
+      {
+        "type": "job.updated",
+        "count": 2
+      },
+      {
+        "type": "scan.progress",
+        "source_id": 1,
+        "run_id": 7,
+        "kind": "full",
+        "status": "running",
+        "files_seen": 10,
+        "files_new": 9,
+        "files_changed": 1,
+        "files_missing": 0
+      },
+      {
+        "type": "source.status",
+        "source_id": 2,
+        "status": "unreachable"
+      },
+      {
+        "type": "collections.updated"
+      },
+      {
+        "type": "tags.updated"
+      }
+    ]
+  },
+  {
+    "type": "batch",
+    "events": [
+      {
+        "type": "asset.updated",
+        "all": true
+      }
+    ]
+  },
+  {
+    "type": "batch",
+    "events": [
+      {
+        "type": "resync"
+      }
+    ]
+  }
+]

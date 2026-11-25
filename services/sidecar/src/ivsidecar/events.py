@@ -114,6 +114,10 @@ class EventBus:
         with self._lock:
             self._subs.pop(sid, None)
 
+    def hello(self) -> dict:
+        """First message on every connection."""
+        return {"type": "hello", "flush_ms": int(self.flush_s * 1000)}
+
     def subscribers(self) -> int:
         return len(self._subs)
 

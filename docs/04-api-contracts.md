@@ -2,6 +2,8 @@
 
 There is one API: the sidecar's localhost API, consumed by the Tauri UI. FastAPI generates the authoritative OpenAPI document at `/v1/openapi.json`; `packages/shared-types` is generated from it. Tauri `invoke` commands cover only OS functions (§4).
 
+**Keeping the UI in step (B9).** Every route declares a response model (`ivsidecar/schemas.py`, `extra="forbid"`, so an undeclared key fails the response instead of vanishing). `pnpm generate` writes `packages/shared-types/openapi.json`, `events.sample.json` (one real message of every `WS /v1/events` kind) and `src/api.ts`. CI fails when any of the three is stale, and `tsc` fails wherever the UI uses a field that changed. The UI talks to the engine only through `packages/api-client` (typed client, `ApiError`, TanStack Query hooks, live-event refresh).
+
 ## 1. Conventions
 - Base `http://127.0.0.1:<port>/v1`; header `Authorization: Bearer <per-launch token>`; CORS only for the Tauri origin.
 - JSON; ids are integers in responses plus `uid` where present; times ISO 8601.
