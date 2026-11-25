@@ -82,6 +82,32 @@ def heif_info() -> dict:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
+def stages_info() -> dict:
+    """Runs identify + thumbnail + pHash on a generated JPEG in a temp folder. Proves the
+    packaged build bundles everything stages 1-4 need (libvips, NumPy, Pillow)."""
+    try:
+        import tempfile
+        import uuid
+
+        import pyvips
+
+        from .stages.identify import identify
+        from .stages.thumbnails import make_thumbnails
+
+        t = time.perf_counter()
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "probe.jpg"
+            (pyvips.Image.xyz(1200, 800)[0] % 256).cast("uchar").bandjoin([128, 64]).jpegsave(str(src))
+            res = make_thumbnails(src, identify(src), Path(tmp) / "lib", str(uuid.uuid4()))
+        return {
+            "ok": res is not None and len(res.derivatives) == 2,
+            "phash": res.phash.hex() if res else None,
+            "ms": round((time.perf_counter() - t) * 1000, 1),
+        }
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
 def find_exiftool() -> str | None:
     env = os.environ.get("IV_EXIFTOOL")
     if env and Path(env).is_file():

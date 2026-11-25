@@ -176,6 +176,7 @@ version = "0.0.1"
 source = { editable = "services/sidecar" }
 dependencies = [
     { name = "fastapi" },
+    { name = "numpy" },
     { name = "pillow-heif" },
     { name = "pydantic" },
     { name = "pyvips", extra = ["binary"] },
@@ -186,7 +187,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "httpx" },
-    { name = "numpy" },
     { name = "pyinstaller" },
     { name = "pytest" },
     { name = "ruff" },
@@ -195,6 +195,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "numpy", specifier = ">=2" },
     { name = "pillow-heif", specifier = ">=1.1" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyvips", extras = ["binary"], specifier = ">=3.0" },
@@ -205,7 +206,6 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "httpx", specifier = ">=0.27" },
-    { name = "numpy", specifier = ">=2" },
     { name = "pyinstaller", specifier = ">=6.10" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },

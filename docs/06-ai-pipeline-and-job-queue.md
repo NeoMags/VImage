@@ -3,10 +3,10 @@
 ## 1. Stages
 | # | Stage | Phase | Engine | Output |
 |---|---|---|---|---|
-| 1 | identify | D1 | magic-byte sniff + Pillow/pyvips open | mime, kind guess, corrupt flag |
-| 2 | metadata | D1 | ExifTool (bundled exe, subprocess) + Pillow | `asset_metadata`, dates, GPS |
-| 3 | hash | D1 | SHA-256 streamed; pHash (DCT on 32×32 grey) | `sha256`, `phash` → `vec_phash` |
-| 4 | thumbnail | D1 | pyvips (libvips, shrink-on-load; HEIC via libheif — verify Windows build includes it) | WebP 256/512/1600 in cache |
+| 1 | identify | D1 | magic-byte sniff (extension only to tell TIFF-based RAW formats apart) | mime, kind, raw flag, unsupported |
+| 2 | metadata | D1 | ExifTool (bundled exe, one persistent `-stay_open` process) | `asset_metadata`, dates, GPS, raw JSON |
+| 3 | hash | D1 | SHA-256 streamed in 1 MB chunks | `sha256` (asset identity) |
+| 4 | thumbnail | D1 | pyvips shrink-on-load + auto-rotate → sRGB; HEIC/AVIF/BMP via Pillow + pillow-heif (libvips' libheif has no HEVC, verified 2026-11-25); RAW via embedded JPEG preview (ExifTool) | WebP `thumb_512` + `thumb_256`; pHash (DCT on 32×32 grey of the oriented image) → `vec_phash`; `preview_1600` on demand later |
 | 5 | ocr | D2 | PaddleOCR (ONNX Runtime) primary; Tesseract fallback | `extracted_text`, `text_regions` |
 | 6 | classify | D2–D3 | rules first (screenshot dims, no EXIF camera, UI-text density), then CLIP zero-shot vs taxonomy prompts | `asset_categories` (ai, confidence) |
 | 7 | entities | D2 | regex + validators (`phonenumbers`, URL/email parsers, date parser), code/command/error heuristics | `entities` linked to `text_regions` |
@@ -16,7 +16,7 @@
 | 11 | describe | D5, optional | Ollama vision model on localhost (user installs Ollama) | `descriptions`, richer cards |
 | 12 | faces | D6, opt-in | detector + embedder (licence note Q4) | `regions`, `asset_faces` |
 
-Stage order per asset: 1 → 2 → 3 → 4 (asset becomes visible) → 5 → 6/7 → 8 → 9 → 10. Each stage is a separate job so a slow OCR never blocks thumbnails.
+Stage order per file: 1 → 3 (SHA-256: asset created, or matched to an existing asset = exact duplicate, no further work) → 2 → 4 (asset becomes visible). Stages 1 and 3 run before an asset exists, so their jobs reference the file location (migration 0002, B5). Then → 5 → 6/7 → 8 → 9 → 10. Each stage is a separate job so a slow OCR never blocks thumbnails.
 
 **Interactive priority:** when you open an asset or a folder in the UI, its pending jobs get priority 10 (vs 100 bulk), so what you look at processes first.
 
