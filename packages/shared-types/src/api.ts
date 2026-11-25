@@ -403,6 +403,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/shutdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Shutdown
+         * @description Clean quit (B10): stop taking jobs, let running ones finish, close the database, exit.
+         *     The shell waits up to 5 s for the process to end, then kills it.
+         */
+        post: operations["shutdown_v1_shutdown_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sources": {
         parameters: {
             query?: never;
@@ -1255,6 +1276,11 @@ export interface components {
         ScanStarted: {
             /** Scan Run Id */
             scan_run_id: number;
+        };
+        /** ShuttingDown */
+        ShuttingDown: {
+            /** Stopping */
+            stopping: boolean;
         };
         /** Source */
         Source: {
@@ -2417,6 +2443,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    shutdown_v1_shutdown_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShuttingDown"];
                 };
             };
             /** @description Validation Error */

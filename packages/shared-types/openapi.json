@@ -2309,6 +2309,20 @@
         "title": "ScanStarted",
         "type": "object"
       },
+      "ShuttingDown": {
+        "additionalProperties": false,
+        "properties": {
+          "stopping": {
+            "title": "Stopping",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stopping"
+        ],
+        "title": "ShuttingDown",
+        "type": "object"
+      },
       "Source": {
         "additionalProperties": false,
         "properties": {
@@ -4514,6 +4528,47 @@
           }
         },
         "summary": "Put Scan Options"
+      }
+    },
+    "/v1/shutdown": {
+      "post": {
+        "description": "Clean quit (B10): stop taking jobs, let running ones finish, close the database, exit.\nThe shell waits up to 5 s for the process to end, then kills it.",
+        "operationId": "shutdown_v1_shutdown_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShuttingDown"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Shutdown"
       }
     },
     "/v1/sources": {

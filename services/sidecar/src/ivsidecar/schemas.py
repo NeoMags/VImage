@@ -376,6 +376,10 @@ class ScanCancelled(Out):
     cancelled: bool
 
 
+class ShuttingDown(Out):
+    stopping: bool
+
+
 class RemovalPreview(Out):
     id: int
     display_name: str

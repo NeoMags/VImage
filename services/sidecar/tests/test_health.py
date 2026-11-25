@@ -77,6 +77,28 @@ def test_process_prints_ready_and_serves(tmp_path):
         proc.wait(timeout=10)
 
 
+def test_shutdown_stops_the_process_cleanly(tmp_path):
+    """B10 clean quit: the shell asks, the engine finishes up and exits 0 well inside the 5 s budget."""
+    env = {**os.environ, "IV_TOKEN": TOKEN}
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "ivsidecar", "--library", str(tmp_path)], env=env, stdout=subprocess.PIPE, text=True
+    )
+    try:
+        port = json.loads(proc.stdout.readline())["port"]
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/v1/shutdown", method="POST", headers={"Authorization": f"Bearer {TOKEN}"}
+        )
+        assert json.load(urllib.request.urlopen(req, timeout=10)) == {"stopping": True}
+        t0 = time.monotonic()
+        assert proc.wait(timeout=10) == 0
+        took = time.monotonic() - t0
+        assert took < 5, f"shutdown took {took:.1f}s"
+        assert "stopped cleanly" in (tmp_path / "logs" / "sidecar.log").read_text(encoding="utf-8")
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+
 def test_refuses_to_start_without_token(tmp_path):
     env = {k: v for k, v in os.environ.items() if k != "IV_TOKEN"}
     out = subprocess.run(

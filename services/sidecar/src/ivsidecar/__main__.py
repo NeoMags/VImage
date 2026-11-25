@@ -75,8 +75,17 @@ def main(argv: list[str] | None = None) -> int:
     queue = JobQueue(args.library)
     scanner = Scanner(args.library, on_batch=queue.wake)
     watcher = FolderWatcher(args.library, scanner)
+    server: uvicorn.Server | None = None
+
+    def request_exit() -> None:  # POST /v1/shutdown: uvicorn finishes requests, then the finally below runs
+        log.info("shutdown requested by the desktop shell")
+        if server is not None:
+            server.should_exit = True
+
     config = uvicorn.Config(
-        create_app(conn, token, started, queue, scanner, watcher), log_level="warning", access_log=False
+        create_app(conn, token, started, queue, scanner, watcher, on_shutdown=request_exit),
+        log_level="warning",
+        access_log=False,
     )
     server = uvicorn.Server(config)
     print(
@@ -96,6 +105,8 @@ def main(argv: list[str] | None = None) -> int:
         watcher.stop()
         scanner.stop()
         queue.stop()
+        conn.close()  # Windows keeps an open database file locked
+        log.info("stopped cleanly")
     return 0
 
 
