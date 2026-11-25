@@ -140,6 +140,8 @@ class JobQueue:
         self.wake()
         for t in self._slots:
             t.join(10)
+        with self._lock:
+            self.conn.close()  # Windows keeps an open database file locked
 
     def recover(self) -> int:
         with self._lock:
@@ -325,7 +327,7 @@ def selftest(timeout_s: float = 60) -> dict:
     from PIL import Image
 
     started = time.monotonic()
-    with tempfile.TemporaryDirectory(prefix="iv-queue-selftest-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="iv-queue-selftest-", ignore_cleanup_errors=True) as tmp:
         lib, src = Path(tmp) / "lib", Path(tmp) / "src"
         src.mkdir()
         Image.new("RGB", (64, 48), (200, 80, 20)).save(src / "selftest.jpg", quality=90)

@@ -341,5 +341,6 @@ def test_selftest_cli():
     res = subprocess.run(
         [sys.executable, "-m", "ivsidecar", "--selftest-queue"], capture_output=True, text=True, timeout=120
     )
+    assert res.stdout.strip(), res.stderr
     out = json.loads(res.stdout.strip().splitlines()[-1])
     assert res.returncode == 0 and out["ok"], out
