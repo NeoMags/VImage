@@ -280,8 +280,8 @@ class Scan:
                     # already in the library that went online-only is still present, not missing.
                     self.counts.skipped_online_only += 1
                     c.execute(
-                        f"UPDATE file_locations SET last_seen_at = {NOW} WHERE source_id = ? AND rel_path = ?",
-                        (self.source_id, rel),
+                        f"UPDATE file_locations SET last_seen_at = {NOW}, seen_run_id = ? WHERE source_id = ? AND rel_path = ?",
+                        (self.run_id, self.source_id, rel),
                     )
                     continue
                 try:
@@ -295,19 +295,22 @@ class Scan:
                 ).fetchone()
                 self.counts.seen += 1
                 if row is None:
-                    handlers.register_file(c, self.source_id, rel, fkey, st.st_size, mtime)
+                    handlers.register_file(c, self.source_id, rel, fkey, st.st_size, mtime, run_id=self.run_id)
                     self._batch_new += 1
                     self.counts.new += 1
                 elif row[1] != st.st_size or row[2] != mtime:
-                    handlers.register_file(c, self.source_id, rel, fkey, st.st_size, mtime, changed=True)
+                    handlers.register_file(
+                        c, self.source_id, rel, fkey, st.st_size, mtime, changed=True, run_id=self.run_id
+                    )
                     self._batch_changed += 1
                     self.counts.changed += 1
                 else:  # unchanged content: never read; only path/presence bookkeeping
                     if row[3] != rel:
                         self.counts.moved += 1
                     c.execute(
-                        f"UPDATE file_locations SET rel_path = ?, state = 'present', last_seen_at = {NOW} WHERE id = ?",
-                        (rel, row[0]),
+                        f"UPDATE file_locations SET rel_path = ?, state = 'present', last_seen_at = {NOW}, seen_run_id = ? "
+                        "WHERE id = ?",
+                        (rel, self.run_id, row[0]),
                     )
             c.execute("COMMIT")
         except BaseException:
@@ -315,10 +318,10 @@ class Scan:
             raise
 
     def _mark_missing(self) -> None:
-        """Locations not seen since this run started are gone (doc 05 §3: kept, marked missing)."""
+        """Locations this run did not see are gone (doc 05 §3: kept, marked missing)."""
         n = self.conn.execute(
             "UPDATE file_locations SET state = 'missing' WHERE source_id = ? AND state = 'present' "
-            "AND last_seen_at < (SELECT started_at FROM scan_runs WHERE id = ?)",
+            "AND seen_run_id IS NOT ?",
             (self.source_id, self.run_id),
         ).rowcount
         self.counts.missing = n

@@ -63,16 +63,19 @@ def register_file(
     mtime: str,
     priority: int = 100,
     changed: bool = False,
+    run_id: int | None = None,
 ) -> int:
     """Record a found (or changed) file and queue stage 1 for it. Returns the location id.
 
     changed=True: same file_key, new size/mtime: stage 1 runs again (and so does hash).
     """
     row = conn.execute(
-        "INSERT INTO file_locations (source_id, file_key, rel_path, size_bytes, mtime) VALUES (?, ?, ?, ?, ?) "
+        "INSERT INTO file_locations (source_id, file_key, rel_path, size_bytes, mtime, seen_run_id) "
+        "VALUES (?, ?, ?, ?, ?, ?) "
         "ON CONFLICT (source_id, file_key) DO UPDATE SET rel_path=excluded.rel_path, state='present', "
-        f"size_bytes=excluded.size_bytes, mtime=excluded.mtime, last_seen_at={NOW} RETURNING id",
-        (source_id, file_key, rel_path, size_bytes, mtime),
+        f"size_bytes=excluded.size_bytes, mtime=excluded.mtime, last_seen_at={NOW}, seen_run_id=excluded.seen_run_id "
+        "RETURNING id",
+        (source_id, file_key, rel_path, size_bytes, mtime, run_id),
     ).fetchone()
     enqueue(conn, "identify", location_id=row[0], priority=priority, requeue=changed)
     return row[0]
