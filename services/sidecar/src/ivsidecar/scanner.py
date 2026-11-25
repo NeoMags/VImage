@@ -397,7 +397,8 @@ class Scan:
                     continue
                 mtime = str(st.st_mtime_ns)
                 row = c.execute(
-                    "SELECT id, size_bytes, mtime, rel_path, state FROM file_locations WHERE source_id = ? AND file_key = ?",
+                    "SELECT id, size_bytes, mtime, rel_path, state, asset_id FROM file_locations "
+                    "WHERE source_id = ? AND file_key = ?",
                     (self.source_id, fkey),
                 ).fetchone()
                 self.counts.seen += 1
@@ -412,13 +413,16 @@ class Scan:
                     self._batch_changed += 1
                     self.counts.changed += 1
                 else:  # unchanged content: never read; only path/presence bookkeeping
-                    if row[3] != rel:
+                    moved = row[3] != rel
+                    if moved:
                         self.counts.moved += 1
                     c.execute(
                         f"UPDATE file_locations SET rel_path = ?, state = 'present', last_seen_at = {NOW}, seen_run_id = ? "
                         "WHERE id = ?",
                         (rel, self.run_id, row[0]),
                     )
+                    if moved and row[5] is not None:
+                        handlers.refresh_fts(c, [row[5]])  # file name is searchable
             c.execute("COMMIT")
         except BaseException:
             c.execute("ROLLBACK")
@@ -683,6 +687,13 @@ def remove_source(conn: sqlite3.Connection, source_id: int, library_dir: Path, c
     conn.execute("BEGIN IMMEDIATE")
     try:
         ids = [r[0] for r in conn.execute(_ONLY_HERE, (source_id, source_id))]
+        touched = [
+            r[0]
+            for r in conn.execute(
+                "SELECT DISTINCT asset_id FROM file_locations WHERE source_id = ? AND asset_id IS NOT NULL",
+                (source_id,),
+            )
+        ]
         thumbs: list[str] = []
         for i in range(0, len(ids), 500):
             chunk = ids[i : i + 500]
@@ -692,6 +703,7 @@ def remove_source(conn: sqlite3.Connection, source_id: int, library_dir: Path, c
             ]
             conn.execute(f"DELETE FROM assets WHERE id IN ({marks})", chunk)  # cascades tags, notes, jobs...
         conn.execute("DELETE FROM sources WHERE id = ?", (source_id,))  # cascades locations, scan runs
+        handlers.refresh_fts(conn, set(touched) - set(ids))  # still in other folders: drop these paths
         conn.execute(
             "INSERT INTO audit_log (action, entity, entity_id, before) VALUES ('remove', 'source', ?, ?)",
             (

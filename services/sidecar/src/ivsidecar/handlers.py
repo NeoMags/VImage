@@ -19,6 +19,11 @@ from .stages import PIPELINE_VERSION
 
 LOCATION_STAGES = ("identify", "hash")
 NOW = "strftime('%Y-%m-%dT%H:%M:%fZ','now')"
+# a location's mtime (nanoseconds) as local wall-clock time, the same form as taken_at
+MTIME_SQL = (
+    "SELECT strftime('%Y-%m-%dT%H:%M:%S', CAST(mtime AS INTEGER) / 1e9, 'unixepoch', 'localtime') "
+    "FROM file_locations WHERE id = ?"
+)
 
 
 class MissingFile(Exception):
@@ -114,6 +119,37 @@ def build_payload(conn: sqlite3.Connection, job: sqlite3.Row, max_pixels: int | 
     return payload
 
 
+# --------------------------------------------------------------------------- search index
+FTS_OWN = ("filename", "title", "tags", "notes")  # columns maintained here; OCR etc. by later stages
+
+
+def refresh_fts(conn: sqlite3.Connection, asset_ids) -> None:
+    """Rewrite the full-text row of each asset from its paths, title, tags and notes.
+
+    Columns filled by later stages (ocr_text, description, card) are kept as they are.
+    """
+    ids = sorted({int(i) for i in asset_ids if i is not None})
+    for i in range(0, len(ids), 500):
+        chunk = ids[i : i + 500]
+        marks = ",".join("?" for _ in chunk)
+        rows = conn.execute(
+            "SELECT a.id, "
+            "(SELECT group_concat(rel_path, ' ') FROM file_locations WHERE asset_id = a.id), a.title, "
+            "(SELECT group_concat(t.name, ' ') FROM asset_tags x JOIN tags t ON t.id = x.tag_id "
+            " WHERE x.asset_id = a.id AND x.rejected = 0), "
+            "(SELECT group_concat(body, ' ') FROM notes WHERE asset_id = a.id), "
+            "f.ocr_text, f.description, f.card "
+            f"FROM assets a LEFT JOIN asset_fts f ON f.rowid = a.id WHERE a.id IN ({marks})",
+            chunk,
+        ).fetchall()
+        conn.execute(f"DELETE FROM asset_fts WHERE rowid IN ({marks})", chunk)
+        conn.executemany(
+            "INSERT INTO asset_fts (rowid, filename, title, tags, notes, ocr_text, description, card) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+
+
 # --------------------------------------------------------------------------- results
 
 
@@ -159,6 +195,7 @@ def _apply_hash(conn: sqlite3.Connection, job: sqlite3.Row, d: dict) -> str | No
         )
         # cur != existing: the file now holds content seen elsewhere; the old asset keeps its
         # tags and stays in the library (it may still be found again, e.g. after an undo).
+        refresh_fts(conn, [existing[0], cur])
         return None if cur == existing[0] else "duplicate"
     status = "pending" if d["supported"] else "unsupported"
     error = None if d["supported"] else f"unsupported: {d['mime']}"
@@ -178,7 +215,7 @@ def _apply_hash(conn: sqlite3.Connection, job: sqlite3.Row, d: dict) -> str | No
         conn.execute(
             "UPDATE assets SET sha256 = ?, kind = ?, status = ?, mime_type = ?, byte_size = ?, error = ?, "
             "phash = NULL, width = NULL, height = NULL, duration_ms = NULL, "
-            "file_modified_at = (SELECT mtime FROM file_locations WHERE id = ?), "
+            f"file_modified_at = ({MTIME_SQL}), "
             f"updated_at = {NOW} WHERE id = ?",
             (d["sha256"], d["kind"], status, d["mime"], d["size"], error, loc, cur),
         )
@@ -186,10 +223,11 @@ def _apply_hash(conn: sqlite3.Connection, job: sqlite3.Row, d: dict) -> str | No
         conn.execute("UPDATE file_locations SET mime_type = ? WHERE id = ?", (d["mime"], loc))
         if d["supported"]:
             enqueue(conn, "metadata", asset_id=cur, priority=job["priority"], requeue=True)
+        refresh_fts(conn, [cur])
         return "edited"
     asset_id = conn.execute(
         "INSERT INTO assets (uid, sha256, kind, status, mime_type, byte_size, error, file_modified_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT mtime FROM file_locations WHERE id = ?)) RETURNING id",
+        f"VALUES (?, ?, ?, ?, ?, ?, ?, ({MTIME_SQL})) RETURNING id",
         (str(uuid.uuid4()), d["sha256"], d["kind"], status, d["mime"], d["size"], error, loc),
     ).fetchone()[0]
     conn.execute("UPDATE file_locations SET asset_id = ?, mime_type = ? WHERE id = ?", (asset_id, d["mime"], loc))
@@ -201,6 +239,7 @@ def _apply_hash(conn: sqlite3.Connection, job: sqlite3.Row, d: dict) -> str | No
         )
     if d["supported"]:
         enqueue(conn, "metadata", asset_id=asset_id, priority=job["priority"])
+    refresh_fts(conn, [asset_id, cur])
     return "edited copy" if cur is not None else None
 
 

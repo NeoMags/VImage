@@ -11,21 +11,24 @@ There is one API: the sidecar's localhost API, consumed by the Tauri UI. FastAPI
 - Thumbnails are *not* served over HTTP: responses carry `thumb_path` relative to the cache dir; the UI loads it through Tauri's asset protocol.
 
 ## 2. Endpoints
+B8a status (2026-11-25): rows marked **Built** exist. Errors are still FastAPI's `{detail}` until B8b switches every endpoint to the problem+json format in §1. User edits are written to `audit_log`; title, tags, notes and file paths are kept in the full-text index (`asset_fts`) for D2 search.
+
 ### Phase D1
 | Method & path | Purpose |
 |---|---|
 | `GET /health` | `{status, version, db_version, queue: {queued, running, failed}}` |
 | `GET/POST /sources` · `PATCH/DELETE /sources/{id}` | Sources CRUD; delete removes records only |
 | `POST /sources/{id}/scan` · `/pause` · `/resume` | Manual scan / pause |
-| `GET /assets` | Filters: `kind, from, to, source, tag, collection, favorite, reviewed, status, mime, min_w, min_h, hidden`; `sort=taken_at|indexed_at|size` |
-| `GET /assets/{id}` | Detail: metadata (source vs user), derivatives, locations (+ reachable flag), tags, collections, notes, jobs |
-| `PATCH /assets/{id}` | `title, taken_at, is_favorite, is_reviewed` (stored as user origin) |
-| `POST /assets/{id}/hide` · `/unhide` | Reversible, audited |
-| `POST /assets/{id}/reveal` | Asks the shell to open the file location in Explorer (returns path) |
-| `POST /assets:bulk` | `{ids[≤5000], add_tags, remove_tags, add_to_collection, set_favorite, hide}` |
-| `GET/POST/PATCH/DELETE /tags` | |
-| `GET/POST/PATCH/DELETE /collections` · `POST/DELETE /collections/{id}/assets` | nested, reorder via `position` |
-| `GET/POST/PATCH/DELETE /assets/{id}/notes` | |
+| `GET /assets` | **Built (B8a).** Filters: `kind` (repeatable), `status` (repeatable), `mime`, `from`/`to` (dates, inclusive), `source`, `tag` (repeatable, all must match), `collection`, `favorite`, `reviewed`, `availability=present|missing|unreachable`, `min_w`, `min_h`, `hidden` (default false: hidden photos are left out). `sort=date|indexed|size|position` (`position` = the user's order inside `collection`), `order=desc|asc`. `date` = date taken, else the file's modified date, else when added. Keyset pagination: `limit` ≤ 500, opaque `cursor` tied to its sort. |
+| `GET /assets/{id}` | **Built.** Title and date as `{value, origin}`, source metadata, derivatives, locations (`path`, `state`, `reachable`), tags (origin, confidence, confirmed; rejected ones left out), collections, notes, previous versions, jobs, `availability` |
+| `PATCH /assets/{id}` | **Built.** `title, taken_at, is_favorite, is_reviewed`; title and date stored with origin `user`. `title: null` clears it; `taken_at: null` re-reads the date from the file. Returns the detail |
+| `POST /assets/{id}/hide` · `/unhide` | **Built.** Reversible, audited |
+| `POST /assets/{id}/reveal` | **Built.** Returns `{path}` of a present file of a known location (409 if none can be reached); the shell opens Explorer |
+| `POST /assets/{id}/tags` · `DELETE /assets/{id}/tags/{tag_id}` | **Built.** Add by names (created if new). Removing a user tag deletes it; removing an AI or file tag keeps it as rejected so it is never re-added |
+| `POST /assets:bulk` | **Built.** `{ids[≤5000], add_tags[names], remove_tags[names], add_to_collection, remove_from_collection, set_favorite, set_reviewed, hide}`; one transaction, all or nothing (404 if any id is unknown) |
+| `GET/POST/PATCH/DELETE /tags` · `POST /tags/{id}/merge {into}` | **Built.** `GET ?q=` prefix search with counts; names are matched case- and accent-insensitively (`slug`); delete returns how many photos lost the tag |
+| `GET/POST/PATCH/DELETE /collections` · `POST/DELETE /collections/{id}/assets {ids}` · `PUT /collections/{id}/assets/{asset_id}/position {position}` | **Built.** Manual collections, nested via `parent_id` (moves that create a loop: 409); deleting removes nested collections too, never photos. New photos are appended; reorder by sending a position between the neighbours' |
+| `GET/POST/PATCH/DELETE /assets/{id}/notes` | **Built.** Plain text ≤ 20,000 chars |
 | `GET /jobs?status=&stage=` · `POST /jobs/{id}/retry` · `POST /queue/pause|resume` | |
 | `GET/PUT /settings/resources` | `{threads, max_ram_mb, only_when_idle, only_on_ac, gpu}` |
 | `GET /stats` | Dashboard counters |

@@ -1,0 +1,274 @@
+"""HTTP routes for library data (B8a, doc 04 §2). The logic lives in library.py.
+
+The API shares one database connection between request threads; `lock` serialises its use so
+one request's transaction never sees or commits another's statements.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+import threading
+from collections.abc import Callable
+from datetime import date
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, HTTPException, Query, Response
+from pydantic import BaseModel, ConfigDict, Field
+
+from . import library as lib
+
+Ids = Annotated[list[int], Field(min_length=1, max_length=lib.MAX_BULK)]
+
+
+class _Model(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class AssetPatch(_Model):
+    title: str | None = Field(default=None, max_length=500)
+    taken_at: str | None = Field(default=None, max_length=40)
+    is_favorite: bool | None = None
+    is_reviewed: bool | None = None
+
+
+class IdsBody(_Model):
+    ids: Ids
+
+
+class BulkBody(_Model):
+    ids: Ids
+    add_tags: list[str] | None = Field(default=None, max_length=50)
+    remove_tags: list[str] | None = Field(default=None, max_length=50)
+    add_to_collection: int | None = None
+    remove_from_collection: int | None = None
+    set_favorite: bool | None = None
+    set_reviewed: bool | None = None
+    hide: bool | None = None
+
+
+class TagBody(_Model):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class TagMerge(_Model):
+    into: int
+
+
+class AssetTags(_Model):
+    names: list[str] = Field(min_length=1, max_length=50)
+
+
+class CollectionBody(_Model):
+    name: str = Field(min_length=1, max_length=200)
+    parent_id: int | None = None
+
+
+class CollectionPatch(_Model):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    parent_id: int | None = None
+
+
+class Position(_Model):
+    position: float
+
+
+class NoteBody(_Model):
+    body: str = Field(min_length=1, max_length=20000)
+
+
+def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
+    r = APIRouter(prefix="/v1")
+
+    def run(fn: Callable, *args, write: bool = False, **kw):
+        with lock:
+            try:
+                if write:
+                    with lib.tx(conn):
+                        return fn(conn, *args, **kw)
+                return fn(conn, *args, **kw)
+            except lib.NotFound as e:
+                raise HTTPException(status_code=404, detail=str(e)) from e
+            except lib.Invalid as e:
+                raise HTTPException(status_code=422, detail=str(e)) from e
+            except lib.Conflict as e:
+                raise HTTPException(status_code=409, detail=str(e)) from e
+
+    # ------------------------------------------------------------------ assets
+    @r.get("/assets")
+    def list_assets(
+        limit: int = Query(60, ge=1, le=500),
+        cursor: str | None = Query(None, max_length=500),
+        sort: Literal["date", "indexed", "size", "position"] = "date",
+        order: Literal["asc", "desc"] = "desc",
+        hidden: bool = False,
+        kind: Annotated[list[str] | None, Query()] = None,
+        status: Annotated[list[str] | None, Query()] = None,
+        mime: str | None = None,
+        date_from: Annotated[date | None, Query(alias="from")] = None,
+        date_to: Annotated[date | None, Query(alias="to")] = None,
+        source: int | None = None,
+        tag: Annotated[list[int] | None, Query()] = None,
+        collection: int | None = None,
+        favorite: bool | None = None,
+        reviewed: bool | None = None,
+        availability: Literal["present", "missing", "unreachable"] | None = None,
+        min_w: int | None = Query(None, ge=1),
+        min_h: int | None = Query(None, ge=1),
+    ) -> dict:
+        return run(
+            lib.list_assets,
+            limit=limit,
+            cursor=cursor,
+            sort=sort,
+            order=order,
+            hidden=hidden,
+            kind=kind,
+            status=status,
+            mime=mime,
+            date_from=date_from,
+            date_to=date_to,
+            source=source,
+            tag=tag,
+            collection=collection,
+            favorite=favorite,
+            reviewed=reviewed,
+            availability=availability,
+            min_w=min_w,
+            min_h=min_h,
+        )
+
+    @r.post("/assets:bulk")
+    def bulk(body: BulkBody) -> dict:
+        return run(lib.bulk, body.ids, body.model_dump(exclude={"ids"}, exclude_none=True), write=True)
+
+    @r.get("/assets/{asset_id}")
+    def detail(asset_id: int) -> dict:
+        return run(lib.asset_detail, asset_id)
+
+    @r.patch("/assets/{asset_id}")
+    def patch(asset_id: int, body: AssetPatch) -> dict:
+        changes = {k: getattr(body, k) for k in body.model_fields_set}
+        if any(changes.get(f) is None for f in ("is_favorite", "is_reviewed") if f in changes):
+            raise HTTPException(status_code=422, detail="is_favorite and is_reviewed must be true or false")
+        run(lib.patch_asset, asset_id, changes, write=True)
+        return run(lib.asset_detail, asset_id)
+
+    @r.post("/assets/{asset_id}/hide")
+    def hide(asset_id: int) -> dict:
+        run(lib.set_hidden, [asset_id], True, write=True)
+        return {"id": asset_id, "is_hidden": True}
+
+    @r.post("/assets/{asset_id}/unhide")
+    def unhide(asset_id: int) -> dict:
+        run(lib.set_hidden, [asset_id], False, write=True)
+        return {"id": asset_id, "is_hidden": False}
+
+    @r.post("/assets/{asset_id}/reveal")
+    def reveal(asset_id: int) -> dict:
+        return run(lib.reveal_path, asset_id)
+
+    @r.post("/assets/{asset_id}/tags")
+    def tag_asset(asset_id: int, body: AssetTags) -> dict:
+        def go(c):
+            lib._exists(c, "assets", asset_id, "photo")
+            lib.add_tags(c, [asset_id], lib.get_or_create_tags(c, body.names))
+            lib.audit(c, "tag", "asset", asset_id, None, {"names": body.names})
+
+        run(go, write=True)
+        return {"tags": run(lib.asset_detail, asset_id)["tags"]}
+
+    @r.delete("/assets/{asset_id}/tags/{tag_id}", status_code=204)
+    def untag_asset(asset_id: int, tag_id: int) -> Response:
+        def go(c):
+            lib._exists(c, "assets", asset_id, "photo")
+            lib._exists(c, "tags", tag_id, "tag")
+            lib.remove_tags(c, [asset_id], [tag_id])
+            lib.audit(c, "untag", "asset", asset_id, None, {"tag_id": tag_id})
+
+        run(go, write=True)
+        return Response(status_code=204)
+
+    # ------------------------------------------------------------------ notes
+    @r.get("/assets/{asset_id}/notes")
+    def notes(asset_id: int) -> list[dict]:
+        def go(c):
+            lib._exists(c, "assets", asset_id, "photo")
+            return lib.list_notes(c, asset_id)
+
+        return run(go)
+
+    @r.post("/assets/{asset_id}/notes", status_code=201)
+    def add_note(asset_id: int, body: NoteBody) -> dict:
+        return run(lib.create_note, asset_id, body.body, write=True)
+
+    @r.patch("/assets/{asset_id}/notes/{note_id}")
+    def edit_note(asset_id: int, note_id: int, body: NoteBody) -> list[dict]:
+        run(lib.update_note, asset_id, note_id, body.body, write=True)
+        return run(lib.list_notes, asset_id)
+
+    @r.delete("/assets/{asset_id}/notes/{note_id}", status_code=204)
+    def remove_note(asset_id: int, note_id: int) -> Response:
+        run(lib.delete_note, asset_id, note_id, write=True)
+        return Response(status_code=204)
+
+    # ------------------------------------------------------------------ tags
+    @r.get("/tags")
+    def tags(q: str | None = Query(None, max_length=100)) -> list[dict]:
+        return run(lib.list_tags, q)
+
+    @r.post("/tags", status_code=201)
+    def new_tag(body: TagBody) -> dict:
+        return run(lib.create_tag, body.name, write=True)
+
+    @r.patch("/tags/{tag_id}")
+    def rename_tag(tag_id: int, body: TagBody) -> dict:
+        return run(lib.rename_tag, tag_id, body.name, write=True)
+
+    @r.delete("/tags/{tag_id}")
+    def delete_tag(tag_id: int) -> dict:
+        return {"photos_untagged": run(lib.delete_tag, tag_id, write=True)}
+
+    @r.post("/tags/{tag_id}/merge")
+    def merge_tag(tag_id: int, body: TagMerge) -> dict:
+        return {"photos_moved": run(lib.merge_tags, tag_id, body.into, write=True)}
+
+    # ------------------------------------------------------------------ collections
+    @r.get("/collections")
+    def collections() -> list[dict]:
+        return run(lib.list_collections)
+
+    @r.post("/collections", status_code=201)
+    def new_collection(body: CollectionBody) -> dict:
+        return run(lib.create_collection, body.name, body.parent_id, write=True)
+
+    @r.patch("/collections/{coll_id}")
+    def edit_collection(coll_id: int, body: CollectionPatch) -> dict:
+        changes = {k: getattr(body, k) for k in body.model_fields_set}
+        if "name" in changes and changes["name"] is None:
+            raise HTTPException(status_code=422, detail="name cannot be empty")
+        run(lib.update_collection, coll_id, changes, write=True)
+        return next(c for c in run(lib.list_collections) if c["id"] == coll_id)
+
+    @r.delete("/collections/{coll_id}", status_code=204)
+    def delete_collection(coll_id: int) -> Response:
+        run(lib.delete_collection, coll_id, write=True)
+        return Response(status_code=204)
+
+    @r.post("/collections/{coll_id}/assets")
+    def collect(coll_id: int, body: IdsBody) -> dict:
+        def go(c):
+            lib._check_assets(c, body.ids)
+            return lib.add_to_collection(c, coll_id, list(dict.fromkeys(body.ids)))  # keeps the given order
+
+        return {"added": run(go, write=True)}
+
+    @r.delete("/collections/{coll_id}/assets")
+    def uncollect(coll_id: int, body: IdsBody) -> dict:
+        return {"removed": run(lib.remove_from_collection, coll_id, body.ids, write=True)}
+
+    @r.put("/collections/{coll_id}/assets/{asset_id}/position", status_code=204)
+    def reorder(coll_id: int, asset_id: int, body: Position) -> Response:
+        run(lib.set_position, coll_id, asset_id, body.position, write=True)
+        return Response(status_code=204)
+
+    return r
