@@ -13,3 +13,6 @@ target/
 .DS_Store
 supabase/.temp/
 models/
+apps/desktop/src-tauri/gen/
+services/sidecar/dist/
+services/sidecar/build/
