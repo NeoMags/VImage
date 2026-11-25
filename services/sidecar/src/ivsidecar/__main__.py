@@ -12,6 +12,7 @@ import logging
 import os
 import socket
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from .app import create_app
 from .jobqueue import JobQueue
 from .scanner import Scanner
 from .watchdog import watch_parent
+from .watcher import FolderWatcher
 
 log = logging.getLogger("ivsidecar")
 
@@ -41,9 +43,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--selftest-queue", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.selftest_queue:  # CI check of the packaged build; no token or library needed
+        from watchdog.observers import Observer
+
         from .jobqueue import selftest
 
         result = selftest()
+        result["observer"] = Observer.__name__  # the packaged build must not fall back to polling
         print(json.dumps(result), flush=True)
         return 0 if result["ok"] else 1
 
@@ -69,7 +74,10 @@ def main(argv: list[str] | None = None) -> int:
 
     queue = JobQueue(args.library)
     scanner = Scanner(args.library, on_batch=queue.wake)
-    config = uvicorn.Config(create_app(conn, token, started, queue, scanner), log_level="warning", access_log=False)
+    watcher = FolderWatcher(args.library, scanner)
+    config = uvicorn.Config(
+        create_app(conn, token, started, queue, scanner, watcher), log_level="warning", access_log=False
+    )
     server = uvicorn.Server(config)
     print(
         json.dumps(
@@ -79,9 +87,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     queue.start()  # after "ready": jobs left over from last time must not delay the window
     scanner.resume_interrupted()
+    # watch every folder, then a full scan of each (changes made while the app was closed). In a
+    # thread: setting up watches can take a while on big trees and must not delay the API.
+    threading.Thread(target=watcher.start, daemon=True, name="iv-watch-start").start()
     try:
         server.run(sockets=[sock])
     finally:
+        watcher.stop()
         scanner.stop()
         queue.stop()
     return 0

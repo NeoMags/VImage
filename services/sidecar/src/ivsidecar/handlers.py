@@ -143,24 +143,65 @@ def apply_result(conn: sqlite3.Connection, job: sqlite3.Row, data: dict | None) 
 
 
 def _apply_hash(conn: sqlite3.Connection, job: sqlite3.Row, d: dict) -> str | None:
+    """Link the location to the asset for its content (doc 05 §3, decision 5 of the B7 plan).
+
+    * content already known: link to that asset (exact duplicate, nothing to reprocess);
+    * the file was edited and its old asset lives nowhere else: the same asset takes the new
+      content (old hash kept in asset_versions), so tags, notes and favourites stay attached;
+    * edited, but the old content also lives elsewhere: a new asset, with the tags copied.
+    """
     loc = job["location_id"]
+    cur = conn.execute("SELECT asset_id FROM file_locations WHERE id = ?", (loc,)).fetchone()[0]
     existing = conn.execute("SELECT id FROM assets WHERE sha256 = ?", (d["sha256"],)).fetchone()
-    if existing:  # exact duplicate: one more place where this content lives, nothing to reprocess
+    if existing:
         conn.execute(
             "UPDATE file_locations SET asset_id = ?, mime_type = ? WHERE id = ?", (existing[0], d["mime"], loc)
         )
-        return "duplicate"
+        # cur != existing: the file now holds content seen elsewhere; the old asset keeps its
+        # tags and stays in the library (it may still be found again, e.g. after an undo).
+        return None if cur == existing[0] else "duplicate"
     status = "pending" if d["supported"] else "unsupported"
     error = None if d["supported"] else f"unsupported: {d['mime']}"
+    shared = (
+        cur is not None
+        and conn.execute(
+            "SELECT 1 FROM file_locations WHERE asset_id = ? AND id != ? AND state != 'missing' LIMIT 1", (cur, loc)
+        ).fetchone()
+        is not None
+    )
+    if cur is not None and not shared:  # edited in place: same asset, new content
+        conn.execute(
+            "INSERT INTO asset_versions (asset_id, sha256, byte_size) SELECT id, sha256, byte_size FROM assets "
+            "WHERE id = ?",
+            (cur,),
+        )
+        conn.execute(
+            "UPDATE assets SET sha256 = ?, kind = ?, status = ?, mime_type = ?, byte_size = ?, error = ?, "
+            "phash = NULL, width = NULL, height = NULL, duration_ms = NULL, "
+            "file_modified_at = (SELECT mtime FROM file_locations WHERE id = ?), "
+            f"updated_at = {NOW} WHERE id = ?",
+            (d["sha256"], d["kind"], status, d["mime"], d["size"], error, loc, cur),
+        )
+        conn.execute("DELETE FROM vec_phash WHERE rowid = ?", (cur,))
+        conn.execute("UPDATE file_locations SET mime_type = ? WHERE id = ?", (d["mime"], loc))
+        if d["supported"]:
+            enqueue(conn, "metadata", asset_id=cur, priority=job["priority"], requeue=True)
+        return "edited"
     asset_id = conn.execute(
         "INSERT INTO assets (uid, sha256, kind, status, mime_type, byte_size, error, file_modified_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT mtime FROM file_locations WHERE id = ?)) RETURNING id",
         (str(uuid.uuid4()), d["sha256"], d["kind"], status, d["mime"], d["size"], error, loc),
     ).fetchone()[0]
     conn.execute("UPDATE file_locations SET asset_id = ?, mime_type = ? WHERE id = ?", (asset_id, d["mime"], loc))
+    if cur is not None:  # edited copy of content that also lives elsewhere: keep the user's tags
+        conn.execute(
+            "INSERT INTO asset_tags (asset_id, tag_id, origin, confidence, rejected, confirmed_at) "
+            "SELECT ?, tag_id, origin, confidence, rejected, confirmed_at FROM asset_tags WHERE asset_id = ?",
+            (asset_id, cur),
+        )
     if d["supported"]:
         enqueue(conn, "metadata", asset_id=asset_id, priority=job["priority"])
-    return None
+    return "edited copy" if cur is not None else None
 
 
 _MD_COLS = (
@@ -187,7 +228,8 @@ def _apply_metadata(conn: sqlite3.Connection, job: sqlite3.Row, d: dict) -> str 
         f"updated_at = {NOW} WHERE id = ?",
         (d.get("width"), d.get("height"), d.get("duration_ms"), d.get("taken_at"), d.get("taken_at"), aid),
     )
-    enqueue(conn, "thumbnail", asset_id=aid, priority=job["priority"])
+    # requeue: after an edit in place the asset's earlier thumbnail job has already succeeded
+    enqueue(conn, "thumbnail", asset_id=aid, priority=job["priority"], requeue=True)
     return d.get("warning")
 
 

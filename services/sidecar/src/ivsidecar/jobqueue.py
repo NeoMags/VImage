@@ -274,6 +274,9 @@ class JobQueue:
             c = self.conn
             c.execute("BEGIN IMMEDIATE")
             try:
+                if c.execute("SELECT 1 FROM jobs WHERE id = ?", (jid,)).fetchone() is None:
+                    c.execute("ROLLBACK")  # its folder was removed from the library meanwhile
+                    return
                 if outcome == "ok":
                     status, note = handlers.apply_result(c, job, data)
                     c.execute(

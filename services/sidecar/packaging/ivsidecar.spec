@@ -12,7 +12,7 @@ site = sysconfig.get_paths()["purelib"]
 
 datas = collect_data_files("ivsidecar", includes=["migrations/*.sql"])
 binaries = []
-hiddenimports = ["_libvips", "ivsidecar.migrations"]
+hiddenimports = ["_libvips", "ivsidecar.migrations", "watchdog.observers.read_directory_changes", "watchdog.observers.winapi"]
 
 # pyvips-binary ships the native _libvips extension plus a vendored libs folder
 # (pyvips_binary.libs) that PyInstaller does not discover on its own.

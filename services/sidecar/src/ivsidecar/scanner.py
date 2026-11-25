@@ -25,6 +25,7 @@ import sqlite3
 import stat as stat_mod
 import sys
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -84,6 +85,17 @@ def volume_info(root: Path) -> VolumeInfo:
         use_ids = not unc and fs in FILE_ID_FILESYSTEMS
         return VolumeInfo(serial or f"{st.st_dev:x}", use_ids, "network_share" if unc else "local_folder")
     return VolumeInfo(f"{st.st_dev:x}", True, "local_folder")
+
+
+def candidate_roots(root_path: str) -> list[str]:
+    """Where a source on a removable drive may be now: the same folder under other drive letters."""
+    if sys.platform != "win32" or len(root_path) < 2 or root_path[1] != ":":
+        return []
+    import ctypes
+
+    mask = ctypes.windll.kernel32.GetLogicalDrives()
+    here = root_path[0].upper()
+    return [f"{chr(65 + i)}{root_path[1:]}" for i in range(26) if mask >> i & 1 and chr(65 + i) != here]
 
 
 # --------------------------------------------------------------------------- sources
@@ -234,6 +246,101 @@ class Scan:
         self._finish("succeeded")
         return "succeeded"
 
+    # -- watch batches (B7)
+    def run_batch(self, dirs: dict[str, bool], min_age_s: float = 2.0) -> dict[str, bool]:
+        """Re-list only the folders the watcher reported, as one 'watch_batch' run.
+
+        `dirs` maps a folder (relative, "" = root) to recursive: True for a folder that was
+        created or moved in (its whole subtree is new to us), False when only its direct files
+        changed. A folder that no longer exists marks everything under it missing.
+        Files modified less than `min_age_s` ago may still be being written (a copy in
+        progress); their folder is returned to be looked at again, and nothing in it is marked
+        missing yet. Returns those folders.
+        """
+        deferred: dict[str, bool] = {}
+        for rel_dir, recursive in sorted(dirs.items()):
+            if self.shutdown.is_set() or self.cancel.is_set():
+                deferred.update({k: v for k, v in dirs.items() if k >= rel_dir})
+                break
+            if not self._dir_allowed(rel_dir):
+                continue
+            path = self.root / rel_dir if rel_dir else self.root
+            if not path.is_dir():
+                self._mark_missing_under(rel_dir, direct_only=False)
+                continue
+            stack, young_any = [rel_dir], False
+            while stack:
+                d = stack.pop()
+                try:
+                    subdirs, files = self._list(d)
+                except OSError as e:
+                    log.warning("watch: cannot list %s: %s", d, e)
+                    young_any = True  # try again later rather than marking its files missing
+                    continue
+                cutoff = time.time() - min_age_s
+                ready = [f for f in files if f[2].st_mtime <= cutoff]
+                self._register(ready)
+                if len(ready) < len(files):
+                    young_any = True
+                    if not recursive:
+                        deferred[d] = False
+                else:
+                    self._mark_missing_under(d, direct_only=True)
+                if recursive:
+                    stack.extend(subdirs)
+            if recursive:
+                if young_any:
+                    deferred[rel_dir] = True
+                else:
+                    self._mark_missing_under(rel_dir, direct_only=False)
+        self.conn.execute(
+            "UPDATE scan_runs SET files_seen = ?, files_new = ?, files_changed = ?, files_missing = ? WHERE id = ?",
+            (self.counts.seen, self.counts.new, self.counts.changed, self.counts.missing, self.run_id),
+        )
+        self._finish("succeeded" if not self.shutdown.is_set() else "cancelled", update_source=False)
+        if self.on_batch and (self.counts.new or self.counts.changed):
+            self.on_batch()
+        return deferred
+
+    def _dir_allowed(self, rel_dir: str) -> bool:
+        """Same exclusions as the full walk, applied to every folder on the way down."""
+        if not rel_dir:
+            return True
+        parts = rel_dir.split("/")
+        cur = self.root
+        for i, name in enumerate(parts):
+            if name.startswith(".") or name.casefold() in SKIP_DIRS:
+                return False
+            cur = cur / name
+            rel = "/".join(parts[: i + 1])
+            if any(fnmatch.fnmatchcase(rel.casefold(), g.casefold()) for g in self.exclude):
+                return False
+            try:
+                st = cur.lstat()
+            except OSError:
+                return True  # gone: allowed, so that its files are marked missing
+            attrs = getattr(st, "st_file_attributes", 0)
+            if stat_mod.S_ISLNK(st.st_mode) or attrs & (
+                FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_REPARSE_POINT
+            ):
+                return False
+            if cur.resolve() == self.library_dir:
+                return False
+        return True
+
+    def _mark_missing_under(self, rel_dir: str, direct_only: bool) -> None:
+        prefix = f"{rel_dir}/" if rel_dir else ""
+        sql = (
+            "UPDATE file_locations SET state = 'missing' WHERE source_id = ? AND state = 'present' "
+            "AND seen_run_id IS NOT ? AND substr(rel_path, 1, ?) = ?"
+        )
+        if direct_only:
+            sql += " AND instr(substr(rel_path, ? + 1), '/') = 0"
+            args = (self.source_id, self.run_id, len(prefix), prefix, len(prefix))
+        else:
+            args = (self.source_id, self.run_id, len(prefix), prefix)
+        self.counts.missing += self.conn.execute(sql, args).rowcount
+
     def _list(self, rel_dir: str) -> tuple[list[str], list[tuple[str, os.DirEntry, os.stat_result]]]:
         path = self.root / rel_dir if rel_dir else self.root
         subdirs, files = [], []
@@ -327,11 +434,13 @@ class Scan:
         self.counts.missing = n
         self.conn.execute("UPDATE scan_runs SET files_missing = ? WHERE id = ?", (n, self.run_id))
 
-    def _finish(self, status: str, error: str | None = None) -> None:
+    def _finish(self, status: str, error: str | None = None, update_source: bool = True) -> None:
         self.conn.execute(
             f"UPDATE scan_runs SET status = ?, last_error = ?, finished_at = {NOW} WHERE id = ?",
             (status, error, self.run_id),
         )
+        if not update_source:
+            return
         if status == "succeeded":
             self.conn.execute(
                 f"UPDATE sources SET last_scan_at = {NOW}, last_error = NULL WHERE id = ?", (self.source_id,)
@@ -350,6 +459,12 @@ class Scanner:
         self._lock = threading.Lock()
         self._shutdown = threading.Event()
         self._active: dict[int, tuple[threading.Thread, threading.Event]] = {}
+        self._source_locks: dict[int, threading.Lock] = {}
+
+    def source_lock(self, source_id: int) -> threading.Lock:
+        """Held while anything walks this source, so a watch batch and a full scan never overlap."""
+        with self._lock:
+            return self._source_locks.setdefault(source_id, threading.Lock())
 
     def _conn(self) -> sqlite3.Connection:
         return db.connect(self.library_dir / "library.db")
@@ -360,22 +475,24 @@ class Scanner:
             ids = [r[0] for r in conn.execute("SELECT DISTINCT source_id FROM scan_runs WHERE status = 'running'")]
         finally:
             conn.close()
+        started = []
         for sid in ids:
-            self.start(sid)
-        return ids
+            try:
+                self.start(sid)
+                started.append(sid)
+            except SourceError as e:
+                log.warning("not resuming scan of source %d: %s", sid, e)
+        return started
 
     def start(self, source_id: int, include_online_only: bool = False) -> int:
         """Start (or resume) a full scan. Returns the scan_runs id."""
+        if self.check_reachable(source_id) != "active":
+            raise SourceError("the folder cannot be reached (drive unplugged or renamed?)")
         with self._lock:
             if source_id in self._active and self._active[source_id][0].is_alive():
                 raise SourceError("a scan of this folder is already running")
             conn = self._conn()
             try:
-                if (
-                    conn.execute("SELECT 1 FROM sources WHERE id = ? AND status = 'active'", (source_id,)).fetchone()
-                    is None
-                ):
-                    raise SourceError("no such folder")
                 last = conn.execute(
                     "SELECT id, status FROM scan_runs WHERE source_id = ? AND kind = 'full' ORDER BY id DESC LIMIT 1",
                     (source_id,),
@@ -403,8 +520,88 @@ class Scanner:
             t.start()
             return run_id
 
+    # -- reachability (doc 05 §3: unplugged drives are unreachable, never "deleted")
+    def check_reachable(self, source_id: int) -> str:
+        """Returns the source's status after checking that its folder is there.
+
+        An active source whose folder is gone becomes 'unreachable' and its files too (not
+        missing: nothing was deleted). On Windows a removable drive may come back under another
+        letter; it is found again by its volume serial and root_path is updated. When the
+        folder is back the source is 'active' again; the caller then runs a full scan, which
+        sorts out what changed meanwhile.
+        """
+        conn = self._conn()
+        try:
+            row = conn.execute("SELECT root_path, volume_id, status FROM sources WHERE id = ?", (source_id,)).fetchone()
+            if row is None or row[2] not in ("active", "unreachable"):
+                raise SourceError("no such folder")
+            root_path, volume_id, status = row
+            found = root_path if Path(root_path).is_dir() else self._refind(root_path, volume_id)
+            if found is None:
+                if status == "active":
+                    log.warning("source %d unreachable: %s", source_id, root_path)
+                    conn.execute("BEGIN IMMEDIATE")
+                    conn.execute("UPDATE sources SET status = 'unreachable' WHERE id = ?", (source_id,))
+                    conn.execute(
+                        "UPDATE file_locations SET state = 'unreachable' WHERE source_id = ? AND state = 'present'",
+                        (source_id,),
+                    )
+                    conn.execute("COMMIT")
+                return "unreachable"
+            if status == "unreachable" or found != root_path:
+                log.info("source %d reachable again at %s", source_id, found)
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute(
+                    "UPDATE sources SET status = 'active', root_path = ?, last_error = NULL WHERE id = ?",
+                    (found, source_id),
+                )
+                conn.execute(
+                    "UPDATE file_locations SET state = 'present' WHERE source_id = ? AND state = 'unreachable'",
+                    (source_id,),
+                )
+                conn.execute("COMMIT")
+            return "active"
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _refind(root_path: str, volume_id: str | None) -> str | None:
+        if not volume_id:
+            return None
+        for cand in candidate_roots(root_path):
+            try:
+                if Path(cand).is_dir() and volume_info(Path(cand)).volume_id == volume_id:
+                    return cand
+            except OSError:
+                continue
+        return None
+
+    def run_batch(self, source_id: int, dirs: dict[str, bool], min_age_s: float = 2.0) -> dict[str, bool]:
+        """One watch batch (see Scan.run_batch). Waits while a full scan of the source runs."""
+        with self.source_lock(source_id):
+            conn = self._conn()
+            try:
+                run_id = conn.execute(
+                    "INSERT INTO scan_runs (source_id, kind) VALUES (?, 'watch_batch') RETURNING id", (source_id,)
+                ).fetchone()[0]
+                scan = Scan(conn, source_id, run_id, self.library_dir, False, None, self.on_batch, self._shutdown)
+                scan.include_online_only = self._include_online_only(conn)
+                deferred = scan.run_batch(dirs, min_age_s)
+                log.info("watch batch %d of source %d: %d folders, %s", run_id, source_id, len(dirs), scan.counts)
+                return deferred
+            finally:
+                conn.close()
+
+    @staticmethod
+    def _include_online_only(conn: sqlite3.Connection) -> bool:
+        from . import settings
+
+        return settings.load(conn, "scan").include_online_only
+
     def _run(self, source_id: int, run_id: int, include_online_only: bool, cancel: threading.Event) -> None:
         conn = self._conn()
+        lock = self.source_lock(source_id)
+        lock.acquire()
         try:
             scan = Scan(
                 conn, source_id, run_id, self.library_dir, include_online_only, cancel, self.on_batch, self._shutdown
@@ -418,6 +615,7 @@ class Scanner:
                 (f"{type(e).__name__}: {e}"[:1000], run_id),
             )
         finally:
+            lock.release()
             conn.close()
             if self.on_batch:
                 self.on_batch()
@@ -439,6 +637,83 @@ class Scanner:
         for t, _ev in active:
             t.join(10)
 
+    def forget(self, source_id: int) -> None:
+        """Cancel and wait for any scan of a source that is being removed."""
+        self.cancel(source_id)
+        with self.source_lock(source_id):  # a watch batch in progress finishes first
+            pass
+
     def running(self) -> list[int]:
         with self._lock:
             return [sid for sid, (t, _e) in self._active.items() if t.is_alive()]
+
+
+# --------------------------------------------------------------------------- removing a source
+_ONLY_HERE = (
+    "SELECT DISTINCT fl.asset_id FROM file_locations fl WHERE fl.source_id = ? AND fl.asset_id IS NOT NULL "
+    "AND NOT EXISTS (SELECT 1 FROM file_locations o WHERE o.asset_id = fl.asset_id AND o.source_id != ?)"
+)
+
+
+def removal_preview(conn: sqlite3.Connection, source_id: int) -> dict:
+    """What removing a folder deletes from the library (shown in the confirmation)."""
+    row = conn.execute(
+        "SELECT display_name, root_path FROM sources WHERE id = ? AND status != 'removed'", (source_id,)
+    ).fetchone()
+    if row is None:
+        raise SourceError("no such folder")
+    files = conn.execute("SELECT count(*) FROM file_locations WHERE source_id = ?", (source_id,)).fetchone()[0]
+    only = conn.execute(f"SELECT count(*) FROM ({_ONLY_HERE})", (source_id, source_id)).fetchone()[0]
+    return {"id": source_id, "display_name": row[0], "root_path": row[1], "files": files, "assets_only_here": only}
+
+
+def remove_source(conn: sqlite3.Connection, source_id: int, library_dir: Path, confirm: int) -> dict:
+    """Removes a folder from the library (B7 decision 4). The folder and its files are not
+    touched. Photos found only in this folder are deleted from the library with their tags,
+    notes and thumbnails; photos that also live in another folder stay.
+
+    `confirm` must equal the assets_only_here count the user was shown, so a count that went
+    stale (a scan added more meanwhile) is not deleted by surprise.
+    """
+    preview = removal_preview(conn, source_id)
+    if confirm != preview["assets_only_here"]:
+        raise SourceError(
+            f"the folder now has {preview['assets_only_here']} photos found only there (you confirmed {confirm})"
+        )
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        ids = [r[0] for r in conn.execute(_ONLY_HERE, (source_id, source_id))]
+        thumbs: list[str] = []
+        for i in range(0, len(ids), 500):
+            chunk = ids[i : i + 500]
+            marks = ",".join("?" for _ in chunk)
+            thumbs += [
+                r[0] for r in conn.execute(f"SELECT rel_path FROM derivatives WHERE asset_id IN ({marks})", chunk)
+            ]
+            conn.execute(f"DELETE FROM assets WHERE id IN ({marks})", chunk)  # cascades tags, notes, jobs...
+        conn.execute("DELETE FROM sources WHERE id = ?", (source_id,))  # cascades locations, scan runs
+        conn.execute(
+            "INSERT INTO audit_log (action, entity, entity_id, before) VALUES ('remove', 'source', ?, ?)",
+            (
+                str(source_id),
+                json.dumps({"root_path": preview["root_path"], "files": preview["files"], "assets_deleted": len(ids)}),
+            ),
+        )
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    lib = library_dir.resolve()
+    removed_files = 0
+    for rel in thumbs:  # after the commit: a crash here leaves stray cache files, never broken rows
+        p = (lib / rel).resolve()
+        if p.is_relative_to(lib):
+            try:
+                p.unlink()
+                removed_files += 1
+            except FileNotFoundError:
+                pass
+            except OSError as e:
+                log.warning("could not delete thumbnail %s: %s", p, e)
+    log.info("removed source %d: %d photos deleted from the library", source_id, len(ids))
+    return {"removed": source_id, "assets_deleted": len(ids), "thumbnails_deleted": removed_files}

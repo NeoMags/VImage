@@ -23,6 +23,7 @@ from ivsidecar import db, handlers, settings
 from ivsidecar.app import create_app
 from ivsidecar.jobqueue import JobQueue
 from ivsidecar.probes import find_exiftool
+from ivsidecar.scanner import volume_info
 
 TOKEN = "t" * 32
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
@@ -50,9 +51,11 @@ def _library(tmp_path: Path, threads: int = 2) -> tuple[Path, Path, sqlite3.Conn
 
 
 def _register_all(conn: sqlite3.Connection, src: Path) -> None:
+    # the same file keys the scanner computes, so the engine's startup scan (B7) recognises them
+    vol = volume_info(src).volume_id
     for p in sorted(src.iterdir()):
         st = p.stat()
-        handlers.register_file(conn, 1, p.name, f"test:{p.name}", st.st_size, str(st.st_mtime_ns))
+        handlers.register_file(conn, 1, p.name, f"{vol}:{st.st_ino:x}", st.st_size, str(st.st_mtime_ns))
 
 
 def _drain(conn: sqlite3.Connection, timeout_s: float = 120) -> None:
