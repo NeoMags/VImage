@@ -6,6 +6,7 @@ import hmac
 import platform
 import sqlite3
 import sys
+import threading
 import time
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
@@ -14,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import __version__, handlers, probes, settings
 from . import scanner as scan_mod
+from .api_library import build_router
 from .jobqueue import JobQueue
 from .watcher import FolderWatcher
 
@@ -50,6 +52,9 @@ def create_app(
         expected = f"Bearer {token}"
         if not hmac.compare_digest(authorization.encode(), expected.encode()):
             raise HTTPException(status_code=401, detail="invalid or missing token")
+
+    db_lock = threading.RLock()  # one shared connection: request threads take turns (api_library)
+    app.include_router(build_router(conn, db_lock), dependencies=[Depends(require_token)])
 
     @app.get("/v1/health", dependencies=[Depends(require_token)])
     def health() -> dict:
@@ -202,7 +207,8 @@ def create_app(
             watcher.remove(source_id)
         sc.forget(source_id)
         try:
-            return scan_mod.remove_source(conn, source_id, sc.library_dir, confirm)
+            with db_lock:
+                return scan_mod.remove_source(conn, source_id, sc.library_dir, confirm)
         except scan_mod.SourceError as e:
             if watcher:  # not removed after all: keep watching it
                 watcher.add(source_id)
