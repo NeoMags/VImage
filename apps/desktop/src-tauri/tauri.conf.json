@@ -4,10 +4,13 @@
   "version": "0.0.1",
   "identifier": "com.neomags.imagevault",
   "build": {
-    "frontendDist": "../ui"
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [
       {
         "label": "main",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import os
 import platform
 import sqlite3
 import sys
@@ -24,6 +25,14 @@ from .watcher import FolderWatcher
 TAURI_ORIGINS = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"]
 
 
+def allowed_origins() -> list[str]:
+    """Pages allowed to call the API: the packaged app's webview only. A development run (not the
+    packaged exe) also accepts IV_DEV_ORIGINS, e.g. the Vite dev server used by `tauri dev` and the
+    UI's end-to-end test. The packaged build ignores it, so it cannot be widened on a user's PC."""
+    extra = [] if getattr(sys, "frozen", False) else os.environ.get("IV_DEV_ORIGINS", "").split(",")
+    return TAURI_ORIGINS + [o.strip() for o in extra if o.strip()]
+
+
 class NewSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -43,9 +52,10 @@ def create_app(
     app = FastAPI(
         title="ImageVault sidecar", version=__version__, docs_url=None, redoc_url=None, openapi_url="/v1/openapi.json"
     )
+    origins = allowed_origins()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=TAURI_ORIGINS,
+        allow_origins=origins,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
     )
@@ -58,7 +68,7 @@ def create_app(
     db_lock = threading.RLock()  # one shared connection: request threads take turns (api_library)
     api_status.install_error_handlers(app)
     app.include_router(build_router(conn, db_lock), dependencies=[Depends(require_token)])
-    status_routes, ws_routes = api_status.build_router(conn, db_lock, token, TAURI_ORIGINS, queue)
+    status_routes, ws_routes = api_status.build_router(conn, db_lock, token, origins, queue)
     app.include_router(status_routes, dependencies=[Depends(require_token)])
     app.include_router(ws_routes)  # checks the token itself (subprotocol)
 

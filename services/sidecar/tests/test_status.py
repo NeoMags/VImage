@@ -191,3 +191,14 @@ def test_10k_file_scan_sends_few_messages(tmp_path):
         t.join(5)
         loop.close()
         conn.close()
+
+
+def test_dev_origin_only_outside_the_packaged_build(tmp_path, monkeypatch):
+    import sys
+
+    from ivsidecar.app import allowed_origins
+
+    monkeypatch.setenv("IV_DEV_ORIGINS", "http://localhost:1420, ")
+    assert allowed_origins()[-1] == "http://localhost:1420"
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert "http://localhost:1420" not in allowed_origins()

@@ -76,8 +76,7 @@ export function planFor(events: LiveEvent[]): RefreshPlan {
         add(keys.jobs.all);
         add(keys.jobStats);
         add(keys.stats);
-        add(keys.health);
-        break;
+        break; // not health: it runs self-tests and is fetched only on demand
       case "scan.progress":
         plan.scans.push(e);
         if (e.status !== "running") {

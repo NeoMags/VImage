@@ -16,3 +16,5 @@ models/
 apps/desktop/src-tauri/gen/
 services/sidecar/dist/
 services/sidecar/build/
+test-results/
+playwright-report/
