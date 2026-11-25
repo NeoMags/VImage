@@ -45,6 +45,7 @@ def create_app(conn: sqlite3.Connection, token: str, started_at: float) -> FastA
             "db": probes.sqlite_info(conn),
             "vips": probes.vips_info(),
             "heif": probes.heif_info(),
+            "stages": probes.stages_info(),
             "exiftool": probes.exiftool_info(),
         }
 

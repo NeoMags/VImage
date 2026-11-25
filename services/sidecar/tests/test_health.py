@@ -35,6 +35,7 @@ def test_health_reports_capabilities(client):
     assert body["vips"]["ok"] is True
     assert body["vips"]["thumbnail_selftest"]["ok"] is True
     assert body["heif"]["ok"] is True, body["heif"]
+    assert body["stages"]["ok"] is True, body["stages"]
 
 
 def test_cors_allows_only_tauri_origin(client):

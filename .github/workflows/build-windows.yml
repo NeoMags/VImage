@@ -26,15 +26,7 @@ jobs:
       - run: pip install uv==0.11.32
       - run: uv sync --locked
 
-      - name: Sidecar tests on Windows
-        working-directory: services/sidecar
-        run: uv run pytest -q
-
-      - name: Package sidecar (PyInstaller one-folder)
-        working-directory: services/sidecar
-        run: uv run pyinstaller --noconfirm --log-level WARN --distpath dist --workpath build packaging/ivsidecar.spec
-
-      - name: Add ExifTool (Windows build from exiftool.org)
+      - name: Download ExifTool (Windows build, pinned)
         working-directory: services/sidecar
         env:
           # Pinned for reproducible builds. Windows zips moved from exiftool.org to SourceForge;
@@ -49,15 +41,30 @@ jobs:
           if ($hash -ne $env:EXIFTOOL_SHA256) { throw "exiftool.zip SHA-256 mismatch: $hash" }
           Expand-Archive exiftool.zip -DestinationPath exiftool-unzipped
           $src = Get-ChildItem exiftool-unzipped -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Force exiftool-staged | Out-Null
+          Copy-Item -Recurse "$($src.FullName)/*" exiftool-staged/
+          Rename-Item "exiftool-staged/exiftool(-k).exe" exiftool.exe
+          "IV_EXIFTOOL=$((Resolve-Path exiftool-staged/exiftool.exe).Path)" | Out-File -Append $env:GITHUB_ENV
+          "exiftool $v staged (sha256 verified)"
+
+      - name: Sidecar tests on Windows
+        working-directory: services/sidecar
+        env:
+          IV_REQUIRE_EXIFTOOL: "1"
+        run: uv run pytest -q
+
+      - name: Package sidecar (PyInstaller one-folder) and add ExifTool
+        working-directory: services/sidecar
+        run: |
+          uv run pyinstaller --noconfirm --log-level WARN --distpath dist --workpath build packaging/ivsidecar.spec
           New-Item -ItemType Directory -Force dist/ivsidecar/exiftool | Out-Null
-          Copy-Item -Recurse "$($src.FullName)/*" dist/ivsidecar/exiftool/
-          Rename-Item "dist/ivsidecar/exiftool/exiftool(-k).exe" exiftool.exe
-          "exiftool $v added (sha256 verified)"
+          Copy-Item -Recurse exiftool-staged/* dist/ivsidecar/exiftool/
 
       - name: Smoke-test packaged sidecar
         working-directory: services/sidecar
         run: |
           $env:IV_TOKEN = "ci-token-0123456789abcdef"
+          Remove-Item Env:IV_EXIFTOOL  # the packaged build must find its own bundled copy
           $lib = Join-Path $env:RUNNER_TEMP "ivlib"
           $sw = [Diagnostics.Stopwatch]::StartNew()
           $psi = New-Object Diagnostics.ProcessStartInfo "dist/ivsidecar/ivsidecar.exe", "--library `"$lib`""
@@ -74,6 +81,7 @@ jobs:
           if ($health.db.schema_version -lt 1) { throw "migration not applied" }
           if (-not $health.exiftool.ok) { throw "ExifTool not working in packaged build" }
           if (-not $health.heif.ok) { throw "HEIC decoding (pillow-heif) not working in packaged build" }
+          if (-not $health.stages.ok) { throw "stages 1-4 self-test failed in packaged build" }
 
       - uses: actions/setup-node@v4
         with:

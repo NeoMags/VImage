@@ -36,7 +36,7 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    excludes=["tkinter", "numpy", "pytest"],
+    excludes=["tkinter", "pytest"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
