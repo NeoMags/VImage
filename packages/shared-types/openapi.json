@@ -299,6 +299,10 @@
             ],
             "title": "Finished At"
           },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
           "last_error": {
             "anyOf": [
               {
@@ -328,6 +332,7 @@
           }
         },
         "required": [
+          "id",
           "stage",
           "status",
           "attempts",
@@ -3444,6 +3449,56 @@
           }
         },
         "summary": "Edit Note"
+      }
+    },
+    "/v1/assets/{asset_id}/preview": {
+      "post": {
+        "description": "The 1600 px preview, made from the original the first time a photo is opened and kept in the\nlibrary cache. Decoding runs outside the database lock. 409: no file of the photo can be\nreached right now; 422: the file cannot be decoded (the UI keeps showing the thumbnail).",
+        "operationId": "asset_preview_v1_assets__asset_id__preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Derivative"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Asset Preview"
       }
     },
     "/v1/assets/{asset_id}/reveal": {

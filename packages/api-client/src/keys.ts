@@ -19,6 +19,7 @@ export const keys = {
   asset: {
     all: ["asset"] as const,
     one: (id: number) => ["asset", id] as const,
+    preview: (id: number) => ["preview", id] as const, // not under "asset": live events must not re-request it
   },
   tags: ["tags"] as const,
   collections: ["collections"] as const,

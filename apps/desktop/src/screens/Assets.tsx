@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { AssetDetail } from "../detail/AssetDetail";
 import { EmptyState, ErrorView, errorText, LoadingRows, Notice } from "../components/States";
 import { bytes, num, plural } from "../format";
 import { runBulk } from "../gallery/bulk";
@@ -170,6 +171,9 @@ function Gallery({ filter, months, updatedAt, sort, order, view, cell, hiddenVie
   const [sel, setSel] = useState<Sel.Selection>(Sel.EMPTY);
   const [focus, setFocus] = useState(0);
   const [notice, setNotice] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
+  // Detail panel (B13): which photo is open, and whether it fills the gallery area.
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [full, setFull] = useState(false);
 
   const loader = useMemo(
     () =>
@@ -237,12 +241,30 @@ function Gallery({ filter, months, updatedAt, sort, order, view, cell, hiddenVie
     loader.evict(visible);
   });
 
+  // While the panel is open it follows the focused photo (arrows, clicks, a page that just arrived).
+  const focused = itemAt(focus);
+  useEffect(() => {
+    if (openId !== null && focused && focused.id !== openId) setOpenId(focused.id);
+  }, [focused, openId]);
+
+  const open = (id: number) => setOpenId(id);
+  const close = useCallback(() => {
+    setOpenId(null);
+    setFull(false);
+    scroller.current?.focus();
+  }, []);
+  const toggleFull = useCallback(() => setFull((f) => !f), []);
+
   const selectedIds = [...sel.ids];
-  const move = (to: number) => {
-    const next = Math.max(0, Math.min(total - 1, to));
-    setFocus(next);
-    virtual.scrollToIndex(rowOfItem(layout, segments, next, cols, headers), { align: "auto" });
-  };
+  const move = useCallback(
+    (to: number) => {
+      const next = Math.max(0, Math.min(total - 1, to));
+      setFocus(next);
+      virtual.scrollToIndex(rowOfItem(layout, segments, next, cols, headers), { align: "auto" });
+    },
+    [total, virtual, layout, segments, cols, headers],
+  );
+  const step = useCallback((d: -1 | 1) => move(focus + d), [move, focus]);
 
   const sendBulk = async (change: Omit<BulkBody, "ids">, what: string, ids = selectedIds) => {
     setNotice(null);
@@ -268,7 +290,11 @@ function Gallery({ filter, months, updatedAt, sort, order, view, cell, hiddenVie
     else if (k === "ArrowUp" || k === "k") move(focus - cols);
     else if (k === "Home") move(0);
     else if (k === "End") move(total - 1);
-    else if (k === "Escape") setSel(Sel.EMPTY);
+    else if (k === "Enter" && item) open(item.id);
+    else if (k === "Escape") {
+      if (openId !== null) close();
+      else setSel(Sel.EMPTY);
+    }
     else if ((k === "a" || k === "A") && (e.ctrlKey || e.metaKey)) setSel(Sel.all(total, itemAt));
     else if (k === "x" && item) setSel(Sel.toggle(sel, focus, item.id));
     else if (k === "f" && item) {
@@ -346,6 +372,7 @@ function Gallery({ filter, months, updatedAt, sort, order, view, cell, hiddenVie
                           thumb={a ? thumbUrl(a.thumb_path) : null}
                           selected={!!a && sel.ids.has(a.id)}
                           focused={index === focus}
+                          onOpen={() => a && open(a.id)}
                           onClick={(e) => {
                             if (!a) return;
                             setFocus(index);
@@ -374,6 +401,9 @@ function Gallery({ filter, months, updatedAt, sort, order, view, cell, hiddenVie
             ))}
           </nav>
         ) : null}
+        {openId !== null ? (
+          <AssetDetail id={openId} full={full} onToggleFull={toggleFull} onClose={close} onStep={step} />
+        ) : null}
       </div>
     </>
   );
@@ -394,6 +424,7 @@ function Cell({
   selected,
   focused,
   onClick,
+  onOpen,
 }: {
   asset: AssetSummary | undefined;
   list: boolean;
@@ -402,6 +433,7 @@ function Cell({
   selected: boolean;
   focused: boolean;
   onClick: (e: React.MouseEvent) => void;
+  onOpen: () => void;
 }) {
   if (!asset) {
     return (
@@ -427,6 +459,7 @@ function Cell({
       aria-label={name}
       data-asset={asset.id}
       onClick={onClick}
+      onDoubleClick={onOpen}
     >
       <div className="g-thumb" style={list ? { width: 44, height: 44 } : undefined}>
         {thumb ? <img src={thumb} alt="" decoding="async" draggable={false} /> : <span className="g-nothumb">{asset.kind}</span>}

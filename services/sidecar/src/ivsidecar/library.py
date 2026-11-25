@@ -354,9 +354,9 @@ def asset_detail(conn: sqlite3.Connection, asset_id: int) -> dict:
         )
     ]
     out["jobs"] = [
-        {"stage": st, "status": s, "attempts": n, "last_error": e, "finished_at": f}
-        for st, s, n, e, f in conn.execute(
-            "SELECT stage, status, attempts, last_error, finished_at FROM jobs WHERE asset_id = ? ORDER BY id",
+        {"id": jid, "stage": st, "status": s, "attempts": n, "last_error": e, "finished_at": f}
+        for jid, st, s, n, e, f in conn.execute(
+            "SELECT id, stage, status, attempts, last_error, finished_at FROM jobs WHERE asset_id = ? ORDER BY id",
             (asset_id,),
         )
     ]
@@ -436,6 +436,41 @@ def reveal_path(conn: sqlite3.Connection, asset_id: int) -> dict:
         if p.is_file():
             return {"path": str(p)}
     raise Conflict("no file of this photo can be reached right now")
+
+
+def library_dir(conn: sqlite3.Connection) -> Path:
+    return Path(conn.execute("PRAGMA database_list").fetchone()[2]).parent
+
+
+def preview_source(conn: sqlite3.Connection, asset_id: int) -> dict:
+    """What making the 1600 px preview needs: the existing one if its file is still there, else a
+    reachable original (path), the asset's uid and EXIF orientation. `path` is None when no file of
+    the photo can be reached (drive offline, file missing)."""
+    _exists(conn, "assets", asset_id, "photo")
+    lib_dir = library_dir(conn)
+    row = conn.execute(
+        "SELECT rel_path, width, height FROM derivatives WHERE asset_id = ? AND kind = 'preview_1600'", (asset_id,)
+    ).fetchone()
+    if row and (lib_dir / row[0]).is_file():
+        return {"existing": {"kind": "preview_1600", "rel_path": row[0], "width": row[1], "height": row[2]}}
+    uid, orientation = conn.execute(
+        "SELECT a.uid, m.orientation FROM assets a LEFT JOIN asset_metadata m ON m.asset_id = a.id WHERE a.id = ?",
+        (asset_id,),
+    ).fetchone()
+    try:
+        path = reveal_path(conn, asset_id)["path"]
+    except Conflict:
+        path = None
+    return {"existing": None, "path": path, "uid": uid, "orientation": orientation, "library_dir": lib_dir}
+
+
+def save_preview(conn: sqlite3.Connection, asset_id: int, rel_path: str, width: int, height: int, size: int) -> None:
+    conn.execute(
+        "INSERT INTO derivatives (asset_id, kind, rel_path, width, height, byte_size) "
+        "VALUES (?, 'preview_1600', ?, ?, ?, ?) ON CONFLICT (asset_id, kind) DO UPDATE SET "
+        "rel_path = excluded.rel_path, width = excluded.width, height = excluded.height, byte_size = excluded.byte_size",
+        (asset_id, rel_path, width, height, size),
+    )
 
 
 # --------------------------------------------------------------------------- tags
