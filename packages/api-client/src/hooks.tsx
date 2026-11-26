@@ -519,3 +519,107 @@ export function useSaveAiOptions() {
     onSuccess: () => refresh(qc, keys.ai),
   });
 }
+
+// ------------------------------------------------------------------ text in photos (K2)
+/** OCR progress and the on/off switch. Polled while photos are waiting. */
+export function useOcr() {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.ocr,
+    queryFn: () => unwrap(api.GET("/v1/ocr")),
+    refetchInterval: (q) => (q.state.data && q.state.data.enabled && q.state.data.photos_waiting > 0 ? 3000 : false),
+  });
+}
+
+export function useSaveOcrOptions() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { enabled: boolean }) => unwrap(api.PUT("/v1/settings/ocr", { body })),
+    onSuccess: () => refresh(qc, keys.ocr, keys.settings.ocr),
+  });
+}
+
+/** Read every photo's text again (your edits are kept). */
+export function useRereadAllText() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.POST("/v1/ocr:rerun")),
+    onSuccess: (data) => qc.setQueryData(keys.ocr, data),
+  });
+}
+
+/** The text in one photo, with its line boxes. */
+export function useAssetText(id: number | null) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.asset.text(id ?? 0),
+    queryFn: () => unwrap(api.GET("/v1/assets/{asset_id}/text", { params: { path: { asset_id: id ?? 0 } } })),
+    enabled: id !== null,
+  });
+}
+
+/** Edit, revert or re-read one photo's text. */
+export function useAssetTextEdits(id: number) {
+  const api = useApi();
+  const qc = useQueryClient();
+  const done = (data?: unknown) => {
+    if (data) qc.setQueryData(keys.asset.text(id), data);
+    void refresh(qc, keys.asset.text(id), keys.ocr);
+  };
+  const path = { params: { path: { asset_id: id } } };
+  return {
+    save: useMutation({
+      mutationFn: (text: string) => unwrap(api.PUT("/v1/assets/{asset_id}/text", { ...path, body: { text } })),
+      onSuccess: done,
+    }),
+    revert: useMutation({
+      mutationFn: () => unwrap(api.DELETE("/v1/assets/{asset_id}/text/edit", path)),
+      onSuccess: done,
+    }),
+    /** K3: screenshot / scan / photo as you say; null hands it back to ImageVault. */
+    setType: useMutation({
+      mutationFn: (type: "screenshot" | "scan" | "photo" | null) =>
+        unwrap(api.PUT("/v1/assets/{asset_id}/type", { ...path, body: { type } })),
+      onSuccess: (data) => {
+        done(data);
+        void refresh(qc, keys.assets.all);
+      },
+    }),
+    readAgain: useMutation({
+      mutationFn: () => unwrap(api.POST("/v1/assets/{asset_id}/text:rerun", path)),
+      onSuccess: done,
+    }),
+  };
+}
+
+// ------------------------------------------------------------------ Knowledge Cards (K5)
+export function useAssetCard(id: number | null) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.asset.card(id ?? 0),
+    queryFn: () => unwrap(api.GET("/v1/assets/{asset_id}/card", { params: { path: { asset_id: id ?? 0 } } })),
+    enabled: id !== null,
+  });
+}
+
+/** Edit the card (it becomes yours), go back to the AI card, or fetch it as Markdown. */
+export function useCardEdits(id: number) {
+  const api = useApi();
+  const qc = useQueryClient();
+  const path = { params: { path: { asset_id: id } } };
+  const done = (data: unknown) => qc.setQueryData(keys.asset.card(id), data);
+  return {
+    edit: useMutation({
+      mutationFn: (body: { title?: string; summary?: string }) =>
+        unwrap(api.PATCH("/v1/assets/{asset_id}/card", { ...path, body })),
+      onSuccess: done,
+    }),
+    reset: useMutation({
+      mutationFn: () => unwrap(api.DELETE("/v1/assets/{asset_id}/card/edit", path)),
+      onSuccess: done,
+    }),
+    markdown: () => unwrap(api.GET("/v1/assets/{asset_id}/card:markdown", path)),
+  };
+}

@@ -29,6 +29,7 @@ class WorkerContext:
         self.library_dir = library_dir
         self._exiftool = None
         self._ai: dict[str, object] = {}  # loaded AI models, kept for the worker's lifetime
+        self._ocr = None
 
     def ai_model(self, kind: str, models_dir: str, threads: int):
         """CLIP or RAM++, loaded on first use in this process (about a second each)."""
@@ -38,6 +39,14 @@ class WorkerContext:
             cls = ClipImage if kind == "embed" else RamTagger
             self._ai[kind] = cls(Path(models_dir), threads)
         return self._ai[kind]
+
+    def ocr_engine(self, threads: int):
+        """RapidOCR (K2), loaded on first use in this process and kept."""
+        if self._ocr is None:
+            from .stages.ocr import RapidOcrEngine
+
+            self._ocr = RapidOcrEngine(threads=threads)
+        return self._ocr
 
     @property
     def exiftool(self):
@@ -86,6 +95,24 @@ def run_stage(stage: str, payload: dict, ctx: WorkerContext) -> dict | None:
             **kwargs,
         )
         return None if res is None else dataclasses.asdict(res)
+    if stage == "ocr":  # K2: the original (not the thumbnail), so small text stays readable
+        from .stages.thumbnails import decode_for_ocr
+
+        ident = identify(path)
+        img = decode_for_ocr(
+            path,
+            ident,
+            exiftool=ctx.exiftool if ident.is_raw else None,
+            orientation=payload.get("orientation"),
+            **({"max_pixels": payload["max_pixels"]} if payload.get("max_pixels") else {}),
+        )
+        res = ctx.ocr_engine(payload.get("threads", 0)).recognize(img)
+        return {
+            "engine": res.engine,
+            "engine_version": res.engine_version,
+            "confidence": res.confidence,
+            "lines": [dataclasses.asdict(ln) for ln in res.lines],
+        }
     if stage in ("embed", "classify"):  # T2: from the 512 px thumbnail, never the original
         from .stages.ai import load_rgb
 

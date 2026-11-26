@@ -148,6 +148,64 @@ export interface paths {
         patch: operations["patch_v1_assets__asset_id__patch"];
         trace?: never;
     };
+    "/v1/assets/{asset_id}/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Card */
+        get: operations["get_card_v1_assets__asset_id__card_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit Card
+         * @description Your title and/or summary; the card is then yours and never regenerated.
+         */
+        patch: operations["edit_card_v1_assets__asset_id__card_patch"];
+        trace?: never;
+    };
+    "/v1/assets/{asset_id}/card/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Reset Card
+         * @description Back to the AI-generated card, made from the text again.
+         */
+        delete: operations["reset_card_v1_assets__asset_id__card_edit_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assets/{asset_id}/card:markdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Card Markdown */
+        get: operations["card_markdown_v1_assets__asset_id__card_markdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assets/{asset_id}/hide": {
         parameters: {
             query?: never;
@@ -289,6 +347,78 @@ export interface paths {
         post?: never;
         /** Untag Asset */
         delete: operations["untag_asset_v1_assets__asset_id__tags__tag_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assets/{asset_id}/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Text */
+        get: operations["get_text_v1_assets__asset_id__text_get"];
+        /** Put Text */
+        put: operations["put_text_v1_assets__asset_id__text_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assets/{asset_id}/text/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revert */
+        delete: operations["revert_v1_assets__asset_id__text_edit_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assets/{asset_id}/text:rerun": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rerun */
+        post: operations["rerun_v1_assets__asset_id__text_rerun_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assets/{asset_id}/type": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Type
+         * @description Screenshot, scan or photo, as you say; null hands it back to ImageVault.
+         */
+        put: operations["put_type_v1_assets__asset_id__type_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -612,6 +742,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ocr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ocr Status */
+        get: operations["ocr_status_v1_ocr_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ocr:rerun": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ocr Rerun
+         * @description Read the text of every photo again (e.g. after an OCR update). Text you edited is kept.
+         */
+        post: operations["ocr_rerun_v1_ocr_rerun_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/search": {
         parameters: {
             query?: never;
@@ -661,6 +828,24 @@ export interface paths {
         get: operations["get_backup_settings_v1_settings_backup_get"];
         /** Put Backup Settings */
         put: operations["put_backup_settings_v1_settings_backup_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/settings/ocr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ocr Settings */
+        get: operations["get_ocr_settings_v1_settings_ocr_get"];
+        /** Put Ocr Settings */
+        put: operations["put_ocr_settings_v1_settings_ocr_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -941,6 +1126,10 @@ export interface components {
             /** Photos With Ai Tags */
             photos_with_ai_tags: number;
         };
+        /** AssetCard */
+        AssetCard: {
+            card: components["schemas"]["KnowledgeCard"] | null;
+        };
         /** AssetDetail */
         AssetDetail: {
             /**
@@ -1036,6 +1225,8 @@ export interface components {
             tags: components["schemas"]["FacetTag"][];
             /** Total */
             total: number;
+            /** Type */
+            type: components["schemas"]["FacetValue"][];
         };
         /** AssetJob */
         AssetJob: {
@@ -1187,6 +1378,31 @@ export interface components {
             /** Tags */
             tags: components["schemas"]["AssetTag"][];
         };
+        /** AssetText */
+        AssetText: {
+            /** Confidence */
+            confidence: number | null;
+            /** Engine */
+            engine: string | null;
+            /** Entities */
+            entities: components["schemas"]["TextEntity"][];
+            /** Error */
+            error: string | null;
+            /** Lines */
+            lines: components["schemas"]["TextLine"][];
+            /** Origin */
+            origin: ("ai" | "user") | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "not_read" | "waiting" | "reading" | "done" | "failed";
+            /** Text */
+            text: string;
+            type: components["schemas"]["PictureType"] | null;
+            /** Updated At */
+            updated_at: string | null;
+        };
         /** AssetVersion */
         AssetVersion: {
             /** Byte Size */
@@ -1283,6 +1499,20 @@ export interface components {
             tags_added?: number | null;
             /** Tags Removed */
             tags_removed?: number | null;
+        };
+        /** CardBody */
+        CardBody: {
+            /** Summary */
+            summary?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** CardMarkdown */
+        CardMarkdown: {
+            /** File Name */
+            file_name: string;
+            /** Markdown */
+            markdown: string;
         };
         /** Collection */
         Collection: {
@@ -1534,6 +1764,19 @@ export interface components {
             };
             queue: components["schemas"]["QueueRuntime"] | null;
         };
+        /** KnowledgeCard */
+        KnowledgeCard: {
+            /** Created At */
+            created_at: string;
+            /** Edited */
+            edited: boolean;
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string;
+        };
         /** LibraryStats */
         LibraryStats: {
             /** Collections */
@@ -1622,6 +1865,32 @@ export interface components {
             /** Body */
             body: string;
         };
+        /**
+         * OcrOptions
+         * @description Text in photos (K2). On by default: the OCR models ship with the app.
+         */
+        OcrOptions: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+        };
+        /** OcrStatus */
+        OcrStatus: {
+            /** Enabled */
+            enabled: boolean;
+            /** Photos Done */
+            photos_done: number;
+            /** Photos Edited */
+            photos_edited: number;
+            /** Photos Failed */
+            photos_failed: number;
+            /** Photos Waiting */
+            photos_waiting: number;
+            /** Photos With Text */
+            photos_with_text: number;
+        };
         /** Paused */
         Paused: {
             /** Paused */
@@ -1649,6 +1918,21 @@ export interface components {
             total: number;
             /** Unreachable */
             unreachable: number;
+        };
+        /** PictureType */
+        PictureType: {
+            /** Confidence */
+            confidence: number | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "ai" | "user";
+            /**
+             * Value
+             * @enum {string}
+             */
+            value: "screenshot" | "scan" | "photo";
         };
         /** Position */
         Position: {
@@ -1995,6 +2279,54 @@ export interface components {
             /** Tag Id */
             tag_id: number;
         };
+        /** TextBody */
+        TextBody: {
+            /** Text */
+            text: string;
+        };
+        /** TextEntity */
+        TextEntity: {
+            /** Id */
+            id: number;
+            /** Line No */
+            line_no: number | null;
+            /** Normalized */
+            normalized: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "ai" | "user";
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "url" | "email" | "phone" | "date" | "address" | "code" | "command" | "error_message" | "product" | "technical_term" | "person_name" | "organization" | "amount" | "other";
+            /** Value */
+            value: string;
+        };
+        /** TextLine */
+        TextLine: {
+            /** Confidence */
+            confidence: number | null;
+            /** H */
+            h: number;
+            /** Line No */
+            line_no: number;
+            /** Text */
+            text: string;
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /** TypeBody */
+        TypeBody: {
+            /** Type */
+            type: ("screenshot" | "scan" | "photo") | null;
+        };
         /** Untaught */
         Untaught: {
             /** Photos Untagged */
@@ -2253,6 +2585,8 @@ export interface operations {
                 max_h?: number | null;
                 min_bytes?: number | null;
                 max_bytes?: number | null;
+                type?: ("screenshot" | "scan" | "photo")[] | null;
+                q?: string | null;
             };
             header?: {
                 authorization?: string;
@@ -2339,6 +2673,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssetDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_card_v1_assets__asset_id__card_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetCard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_card_v1_assets__asset_id__card_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetCard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_card_v1_assets__asset_id__card_edit_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetCard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    card_markdown_v1_assets__asset_id__card_markdown_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardMarkdown"];
                 };
             };
             /** @description Validation Error */
@@ -2695,6 +3165,179 @@ export interface operations {
             };
         };
     };
+    get_text_v1_assets__asset_id__text_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetText"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_text_v1_assets__asset_id__text_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetText"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revert_v1_assets__asset_id__text_edit_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetText"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rerun_v1_assets__asset_id__text_rerun_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetText"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_type_v1_assets__asset_id__type_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TypeBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetText"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     unhide_v1_assets__asset_id__unhide_post: {
         parameters: {
             query?: never;
@@ -2785,6 +3428,8 @@ export interface operations {
                 max_h?: number | null;
                 min_bytes?: number | null;
                 max_bytes?: number | null;
+                type?: ("screenshot" | "scan" | "photo")[] | null;
+                q?: string | null;
             };
             header?: {
                 authorization?: string;
@@ -2835,6 +3480,8 @@ export interface operations {
                 max_h?: number | null;
                 min_bytes?: number | null;
                 max_bytes?: number | null;
+                type?: ("screenshot" | "scan" | "photo")[] | null;
+                q?: string | null;
             };
             header?: {
                 authorization?: string;
@@ -3465,6 +4112,68 @@ export interface operations {
             };
         };
     };
+    ocr_status_v1_ocr_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ocr_rerun_v1_ocr_rerun_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     search_v1_search_post: {
         parameters: {
             query?: never;
@@ -3619,6 +4328,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BackupOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ocr_settings_v1_settings_ocr_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_ocr_settings_v1_settings_ocr_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OcrOptions"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrOptions"];
                 };
             };
             /** @description Validation Error */

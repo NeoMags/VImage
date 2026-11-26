@@ -43,6 +43,8 @@ def _library(tmp_path: Path, threads: int = 2) -> tuple[Path, Path, sqlite3.Conn
     src.mkdir()
     conn = db.open_library(lib)
     settings.save(conn, "resources", settings.Resources(threads=threads))
+    # OCR (K2) is on by default; queue tests switch it off so they don't wait for it (test_text.py covers it)
+    settings.save(conn, "ocr", settings.OcrOptions(enabled=False))
     conn.execute(
         "INSERT INTO sources (uid, kind, display_name, root_path) VALUES ('s1', 'local_folder', 'Photos', ?)",
         (str(src),),

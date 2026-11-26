@@ -22,6 +22,10 @@ export const keys = {
   asset: {
     all: ["asset"] as const,
     one: (id: number) => ["asset", id] as const,
+    /** K2: under the photo's key, so asset.updated (OCR finished, text edited) refreshes it. */
+    text: (id: number) => ["asset", id, "text"] as const,
+    /** K5: under the photo's key, so asset.updated refreshes it. */
+    card: (id: number) => ["asset", id, "card"] as const,
     preview: (id: number) => ["preview", id] as const, // not under "asset": live events must not re-request it
   },
   tags: ["tags"] as const,
@@ -31,7 +35,10 @@ export const keys = {
     scan: ["settings", "scan"] as const,
     backup: ["settings", "backup"] as const,
     ai: ["settings", "ai"] as const,
+    ocr: ["settings", "ocr"] as const,
   },
+  /** Reading text (K2): progress and the on/off switch. */
+  ocr: ["ocr"] as const,
   ai: ["ai"] as const,
   /** Under "ai" so the ai.updated event refreshes it too. */
   aiTaught: ["ai", "taught"] as const,

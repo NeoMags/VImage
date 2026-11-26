@@ -144,10 +144,11 @@ test("More like this, and search explains it needs the models", async ({ page, r
   if (shown === ids[0] || shown === ids[1]) expect(api_sim[0]!.id).toBe(shown === ids[0] ? ids[1] : ids[0]);
   await shot(page, "t4-similar");
 
-  // Search by description: the models are not downloaded in this test run.
+  // Search: the models are not downloaded in this test run, so only words and text are searched (K4).
   await page.keyboard.press("Control+k");
   await page.keyboard.type("red things");
   await page.keyboard.press("Enter");
-  await expect(page.getByText("Search by description needs the AI models")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Text matches" })).toBeVisible();
+  await expect(page.getByText(/download the AI models in/)).toBeVisible();
   expect(errors).toEqual([]);
 });

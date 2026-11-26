@@ -125,6 +125,26 @@
         "title": "AiStatus",
         "type": "object"
       },
+      "AssetCard": {
+        "additionalProperties": false,
+        "properties": {
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KnowledgeCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "card"
+        ],
+        "title": "AssetCard",
+        "type": "object"
+      },
       "AssetDetail": {
         "additionalProperties": false,
         "properties": {
@@ -465,11 +485,19 @@
           "total": {
             "title": "Total",
             "type": "integer"
+          },
+          "type": {
+            "items": {
+              "$ref": "#/components/schemas/FacetValue"
+            },
+            "title": "Type",
+            "type": "array"
           }
         },
         "required": [
           "total",
           "kind",
+          "type",
           "format",
           "status",
           "availability",
@@ -1076,6 +1104,123 @@
         "title": "AssetTags",
         "type": "object"
       },
+      "AssetText": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "engine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/TextEntity"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TextLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ai",
+                  "user"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
+          "state": {
+            "enum": [
+              "not_read",
+              "waiting",
+              "reading",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PictureType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "state",
+          "error",
+          "text",
+          "origin",
+          "engine",
+          "confidence",
+          "updated_at",
+          "lines",
+          "entities",
+          "type"
+        ],
+        "title": "AssetText",
+        "type": "object"
+      },
       "AssetVersion": {
         "additionalProperties": false,
         "properties": {
@@ -1458,6 +1603,57 @@
           "photos"
         ],
         "title": "BulkResult",
+        "type": "object"
+      },
+      "CardBody": {
+        "additionalProperties": false,
+        "properties": {
+          "summary": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "CardBody",
+        "type": "object"
+      },
+      "CardMarkdown": {
+        "additionalProperties": false,
+        "properties": {
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "markdown": {
+            "title": "Markdown",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_name",
+          "markdown"
+        ],
+        "title": "CardMarkdown",
         "type": "object"
       },
       "Collection": {
@@ -2221,6 +2417,40 @@
         "title": "JobStats",
         "type": "object"
       },
+      "KnowledgeCard": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "edited": {
+            "title": "Edited",
+            "type": "boolean"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "summary",
+          "edited",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "KnowledgeCard",
+        "type": "object"
+      },
       "LibraryStats": {
         "additionalProperties": false,
         "properties": {
@@ -2513,6 +2743,58 @@
         "title": "NoteBody",
         "type": "object"
       },
+      "OcrOptions": {
+        "additionalProperties": false,
+        "description": "Text in photos (K2). On by default: the OCR models ship with the app.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "title": "OcrOptions",
+        "type": "object"
+      },
+      "OcrStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "photos_done": {
+            "title": "Photos Done",
+            "type": "integer"
+          },
+          "photos_edited": {
+            "title": "Photos Edited",
+            "type": "integer"
+          },
+          "photos_failed": {
+            "title": "Photos Failed",
+            "type": "integer"
+          },
+          "photos_waiting": {
+            "title": "Photos Waiting",
+            "type": "integer"
+          },
+          "photos_with_text": {
+            "title": "Photos With Text",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "photos_done",
+          "photos_waiting",
+          "photos_failed",
+          "photos_with_text",
+          "photos_edited"
+        ],
+        "title": "OcrStatus",
+        "type": "object"
+      },
       "Paused": {
         "additionalProperties": false,
         "properties": {
@@ -2600,6 +2882,46 @@
           "missing"
         ],
         "title": "PhotoCounts",
+        "type": "object"
+      },
+      "PictureType": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "origin": {
+            "enum": [
+              "ai",
+              "user"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "value": {
+            "enum": [
+              "screenshot",
+              "scan",
+              "photo"
+            ],
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "origin",
+          "confidence"
+        ],
+        "title": "PictureType",
         "type": "object"
       },
       "Position": {
@@ -3602,6 +3924,171 @@
         "title": "TeachResult",
         "type": "object"
       },
+      "TextBody": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "maxLength": 100000,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TextBody",
+        "type": "object"
+      },
+      "TextEntity": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "line_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line No"
+          },
+          "normalized": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized"
+          },
+          "origin": {
+            "enum": [
+              "ai",
+              "user"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "url",
+              "email",
+              "phone",
+              "date",
+              "address",
+              "code",
+              "command",
+              "error_message",
+              "product",
+              "technical_term",
+              "person_name",
+              "organization",
+              "amount",
+              "other"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "value",
+          "normalized",
+          "line_no",
+          "origin"
+        ],
+        "title": "TextEntity",
+        "type": "object"
+      },
+      "TextLine": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "line_no": {
+            "title": "Line No",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "line_no",
+          "text",
+          "x",
+          "y",
+          "w",
+          "h",
+          "confidence"
+        ],
+        "title": "TextLine",
+        "type": "object"
+      },
+      "TypeBody": {
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "screenshot",
+                  "scan",
+                  "photo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "TypeBody",
+        "type": "object"
+      },
       "Untaught": {
         "additionalProperties": false,
         "properties": {
@@ -4361,6 +4848,47 @@
             }
           },
           {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "screenshot",
+                      "scan",
+                      "photo"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -4500,6 +5028,212 @@
           }
         },
         "summary": "Patch"
+      }
+    },
+    "/v1/assets/{asset_id}/card": {
+      "get": {
+        "operationId": "get_card_v1_assets__asset_id__card_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetCard"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Card"
+      },
+      "patch": {
+        "description": "Your title and/or summary; the card is then yours and never regenerated.",
+        "operationId": "edit_card_v1_assets__asset_id__card_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetCard"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Card"
+      }
+    },
+    "/v1/assets/{asset_id}/card/edit": {
+      "delete": {
+        "description": "Back to the AI-generated card, made from the text again.",
+        "operationId": "reset_card_v1_assets__asset_id__card_edit_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetCard"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Card"
+      }
+    },
+    "/v1/assets/{asset_id}/card:markdown": {
+      "get": {
+        "operationId": "card_markdown_v1_assets__asset_id__card_markdown_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardMarkdown"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Card Markdown"
       }
     },
     "/v1/assets/{asset_id}/hide": {
@@ -5053,6 +5787,270 @@
         "summary": "Untag Asset"
       }
     },
+    "/v1/assets/{asset_id}/text": {
+      "get": {
+        "operationId": "get_text_v1_assets__asset_id__text_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetText"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Text"
+      },
+      "put": {
+        "operationId": "put_text_v1_assets__asset_id__text_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetText"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Text"
+      }
+    },
+    "/v1/assets/{asset_id}/text/edit": {
+      "delete": {
+        "operationId": "revert_v1_assets__asset_id__text_edit_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetText"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revert"
+      }
+    },
+    "/v1/assets/{asset_id}/text:rerun": {
+      "post": {
+        "operationId": "rerun_v1_assets__asset_id__text_rerun_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetText"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rerun"
+      }
+    },
+    "/v1/assets/{asset_id}/type": {
+      "put": {
+        "description": "Screenshot, scan or photo, as you say; null hands it back to ImageVault.",
+        "operationId": "put_type_v1_assets__asset_id__type_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TypeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetText"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Type"
+      }
+    },
     "/v1/assets/{asset_id}/unhide": {
       "post": {
         "operationId": "unhide_v1_assets__asset_id__unhide_post",
@@ -5482,6 +6480,47 @@
             }
           },
           {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "screenshot",
+                      "scan",
+                      "photo"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -5827,6 +6866,47 @@
                 }
               ],
               "title": "Max Bytes"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "screenshot",
+                      "scan",
+                      "photo"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
             }
           },
           {
@@ -6765,6 +7845,87 @@
         "summary": "Retry Job"
       }
     },
+    "/v1/ocr": {
+      "get": {
+        "operationId": "ocr_status_v1_ocr_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ocr Status"
+      }
+    },
+    "/v1/ocr:rerun": {
+      "post": {
+        "description": "Read the text of every photo again (e.g. after an OCR update). Text you edited is kept.",
+        "operationId": "ocr_rerun_v1_ocr_rerun_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ocr Rerun"
+      }
+    },
     "/v1/search": {
       "post": {
         "description": "Photos that look like the description, best first (CLIP; works offline).",
@@ -6990,6 +8151,94 @@
           }
         },
         "summary": "Put Backup Settings"
+      }
+    },
+    "/v1/settings/ocr": {
+      "get": {
+        "operationId": "get_ocr_settings_v1_settings_ocr_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ocr Settings"
+      },
+      "put": {
+        "operationId": "put_ocr_settings_v1_settings_ocr_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OcrOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Ocr Settings"
       }
     },
     "/v1/settings/resources": {

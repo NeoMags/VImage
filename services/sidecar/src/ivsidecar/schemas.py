@@ -130,6 +130,8 @@ class SizeBounds(Out):
 class AssetFacets(Out):
     total: int
     kind: list[FacetValue]
+    type: list[FacetValue]
+    """Screenshot, scan, photo (K3)."""
     format: list[FacetValue]
     status: list[FacetValue]
     availability: list[FacetValue]
@@ -546,3 +548,95 @@ class AiStatus(Out):
     photos_waiting: int
     photos_failed: int
     photos_with_ai_tags: int
+
+
+# ---------------------------------------------------------------------------- text in photos (K2)
+class TextLine(Out):
+    line_no: int
+    text: str
+    x: float
+    """Box as fractions of the image's width/height (0..1), upright as displayed."""
+    y: float
+    w: float
+    h: float
+    confidence: float | None
+
+
+EntityType = Literal[
+    "url",
+    "email",
+    "phone",
+    "date",
+    "address",
+    "code",
+    "command",
+    "error_message",
+    "product",
+    "technical_term",
+    "person_name",
+    "organization",
+    "amount",
+    "other",
+]
+
+
+class TextEntity(Out):
+    id: int
+    type: EntityType
+    value: str
+    """As written in the photo."""
+    normalized: str | None
+    """Comparable form: ISO date, digits of a phone number, 'INR 1250.00', lower-case email/host."""
+    line_no: int | None
+    """The OCR line (box) it was found in; None when it has no box."""
+    origin: Literal["ai", "user"]
+
+
+class PictureType(Out):
+    value: Literal["screenshot", "scan", "photo"]
+    origin: Literal["ai", "user"]
+    confidence: float | None
+
+
+class AssetText(Out):
+    state: Literal["not_read", "waiting", "reading", "done", "failed"]
+    error: str | None
+    text: str
+    """The current text: yours if you edited it, else what OCR read. Empty when there is none."""
+    origin: Literal["ai", "user"] | None
+    engine: str | None
+    confidence: float | None
+    updated_at: str | None
+    lines: list[TextLine]
+    """Lines OCR found, with boxes (kept even after you edit the text)."""
+    entities: list[TextEntity]
+    type: PictureType | None
+    """Screenshot, scan or photo (K3); None when it cannot be told."""
+
+
+class KnowledgeCard(Out):
+    title: str
+    summary: str
+    edited: bool
+    """False: AI-generated, follows the text. True: yours, never regenerated."""
+    created_at: str
+    updated_at: str
+
+
+class AssetCard(Out):
+    card: KnowledgeCard | None
+    """None when the photo has no text."""
+
+
+class CardMarkdown(Out):
+    file_name: str
+    markdown: str
+
+
+class OcrStatus(Out):
+    enabled: bool
+    photos_done: int
+    photos_waiting: int
+    photos_failed: int
+    photos_with_text: int
+    photos_edited: int

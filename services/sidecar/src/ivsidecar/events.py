@@ -109,7 +109,8 @@ class EventBus:
         self._wake.set()
 
     def changed(self, what: str) -> None:
-        """what: 'tags', 'collections' or 'ai' (model download finished, AI switched on/off)."""
+        """what: 'tags', 'collections', 'ai' (model download finished, AI switched on/off) or 'ocr'
+        (reading text switched on/off, or queued again)."""
         if not self._active():
             return
         with self._lock:
