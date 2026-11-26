@@ -478,6 +478,66 @@ export function useSimilar(id: number, limit = 120) {
   });
 }
 
+// ------------------------------------------------------------------ duplicates (D2)
+export type DuplicateTab = "copies" | "similar";
+
+export function useDuplicateSummary() {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.assets.duplicateSummary,
+    queryFn: () => unwrap(api.GET("/v1/duplicates:summary")),
+    // while a scan runs, poll as a fallback to the duplicates.updated event
+    refetchInterval: (q) => (q.state.data?.scanning ? 2000 : false),
+  });
+}
+
+export function useDuplicateGroups(tab: DuplicateTab, limit = 50) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.assets.duplicateGroups(tab, limit),
+    queryFn: () => unwrap(api.GET("/v1/duplicates", { params: { query: { tab, limit } } })),
+  });
+}
+
+/** Keep `keep` (default: the suggested photo) and hide the others. Files are never touched. */
+export function useResolveDuplicates() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, keep }: { groupId: number; keep?: number[] }) =>
+      unwrap(api.POST("/v1/duplicates/{group_id}/resolve", { params: { path: { group_id: groupId } }, body: keep ? { keep } : {} })),
+    onSuccess: () => refresh(qc, keys.assets.all, keys.asset.all, keys.stats, keys.tags, keys.collections),
+  });
+}
+
+export function useDismissDuplicates() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: number) =>
+      unwrap(api.POST("/v1/duplicates/{group_id}/dismiss", { params: { path: { group_id: groupId } } })),
+    onSuccess: () => refresh(qc, keys.assets.duplicates),
+  });
+}
+
+export function useResolveAllDuplicates() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (tab: DuplicateTab) => unwrap(api.POST("/v1/duplicates:resolve-all", { body: { tab } })),
+    onSuccess: () => refresh(qc, keys.assets.all, keys.asset.all, keys.stats, keys.tags, keys.collections),
+  });
+}
+
+export function useRescanDuplicates() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.POST("/v1/duplicates:rescan")),
+    onSuccess: (data) => qc.setQueryData(keys.assets.duplicateSummary, data),
+  });
+}
+
 // ------------------------------------------------------------------ teach a tag (T5)
 export function useTaughtTags() {
   const api = useApi();
