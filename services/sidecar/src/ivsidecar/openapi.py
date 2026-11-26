@@ -45,6 +45,7 @@ def events_sample() -> str:
     b.changed("tags")
     b.changed("collections")
     b.changed("ai")
+    b.changed("duplicates")
     b.task_progress("export", 3000, 100000)
     b.library_restored()
     msgs = [b.hello(), {"type": "batch", "events": b._take()}]
