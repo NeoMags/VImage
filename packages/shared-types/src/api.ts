@@ -2497,6 +2497,7 @@ export interface operations {
                 min_bytes?: number | null;
                 max_bytes?: number | null;
                 type?: ("screenshot" | "scan" | "photo")[] | null;
+                q?: string | null;
             };
             header?: {
                 authorization?: string;
@@ -3203,6 +3204,7 @@ export interface operations {
                 min_bytes?: number | null;
                 max_bytes?: number | null;
                 type?: ("screenshot" | "scan" | "photo")[] | null;
+                q?: string | null;
             };
             header?: {
                 authorization?: string;
@@ -3254,6 +3256,7 @@ export interface operations {
                 min_bytes?: number | null;
                 max_bytes?: number | null;
                 type?: ("screenshot" | "scan" | "photo")[] | null;
+                q?: string | null;
             };
             header?: {
                 authorization?: string;

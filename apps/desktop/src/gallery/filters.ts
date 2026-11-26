@@ -96,6 +96,9 @@ export function chipsFor(f: Filters, names: Names): Chip[] {
   for (const k of asList(f.kind)) {
     chips.push({ key: `kind:${k}`, label: kindLabel(k), remove: (x) => ({ ...x, kind: asList(x.kind).filter((v) => v !== k) }) });
   }
+  if (f.q) {
+    chips.push({ key: "q", label: `Text: “${f.q}”`, remove: (x) => without(x, "q") });
+  }
   for (const t of asList(f.type)) {
     chips.push({ key: `type:${t}`, label: typeLabel(t), remove: (x) => ({ ...x, type: asList(x.type).filter((v) => v !== t) }) });
   }

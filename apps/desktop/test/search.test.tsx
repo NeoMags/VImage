@@ -42,7 +42,7 @@ describe("Search by description", () => {
       </>,
       {},
     );
-    const box = screen.getByRole("searchbox", { name: "Search photos by description" });
+    const box = screen.getByRole("searchbox", { name: "Search photos" });
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     expect(document.activeElement).toBe(box);
     fireEvent.change(box, { target: { value: " dog on a beach " } });
@@ -69,12 +69,26 @@ describe("Search by description", () => {
     expect(await screen.findByRole("complementary", { name: "Photo details" })).toBeTruthy();
   });
 
-  it("explains that the models are needed first", async () => {
-    renderWith(<SearchScreen />, {
-      "GET /v1/ai": () => aiStatus(false),
-      "POST /v1/search": () => problem(409, "conflict", "download the AI models first"),
-    }, "/search?q=dog");
-    expect(await screen.findByText("Search by description needs the AI models")).toBeTruthy();
+  it("without the AI models, finds photos by their words and text and says how to search by description", async () => {
+    const { calls } = renderWith(
+      <>
+        <SearchScreen />
+        <Where />
+      </>,
+      {
+        "GET /v1/ai": () => aiStatus(false),
+        "GET /v1/assets": () => ({ items: [hit(7, 0), hit(9, 0)], next_cursor: null }),
+      },
+      "/search?q=0x8007",
+    );
+    const grid = await screen.findByRole("list", { name: "Text matches" });
+    expect(within(grid).getAllByRole("button").map((c) => c.getAttribute("aria-label"))).toEqual(["IMG_7.jpg", "IMG_9.jpg"]);
+    expect(screen.getByText(/download the AI models in/)).toBeTruthy();
+    expect(calls.some((r) => r.url.endsWith("/v1/search"))).toBe(false);
+    const listCall = calls.find((r) => r.url.includes("/v1/assets?"))!;
+    expect(new URL(listCall.url).searchParams.get("q")).toBe("0x8007");
+    fireEvent.click(screen.getByRole("button", { name: "Show in gallery" }));
+    expect(screen.getByLabelText("location").textContent).toBe("/photos");
   });
 });
 

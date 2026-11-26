@@ -101,7 +101,7 @@ function EngineBanner() {
   );
 }
 
-/** Search by description (T4). Ctrl+K (or /) jumps here from anywhere; Enter shows the results. */
+/** Search by words, text in photos (K4) and description (T4). Ctrl+K (or /) jumps here from anywhere; Enter shows the results. */
 export function SearchBox() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -135,7 +135,7 @@ export function SearchBox() {
       <input
         ref={input}
         type="search"
-        aria-label="Search photos by description"
+        aria-label="Search photos"
         placeholder="Search photos… (Ctrl+K)"
         maxLength={300}
         value={text}

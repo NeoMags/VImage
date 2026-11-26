@@ -159,6 +159,7 @@ def _asset_filters(
     min_bytes: int | None = None,
     max_bytes: int | None = None,
     type: list[str] | None = None,
+    q: str | None = None,
 ) -> tuple[list[str], list]:
     """WHERE clauses shared by the asset list and the month counts, so both always agree."""
     where, args = ["a.is_hidden = ?"], [int(hidden)]
@@ -184,6 +185,10 @@ def _asset_filters(
     for t in tag or []:  # all given tags
         where.append("EXISTS (SELECT 1 FROM asset_tags x WHERE x.asset_id = a.id AND x.tag_id = ? AND x.rejected = 0)")
         args.append(t)
+    if q and q.strip():  # K4: words anywhere (name, title, tags, notes, text) or an exact piece of text
+        sql, qa = text_query(q)
+        where.append(sql)
+        args += qa
     if type:  # K3 picture type: screenshot / scan / photo (any of them)
         where.append(
             "EXISTS (SELECT 1 FROM asset_categories x JOIN categories c ON c.id = x.category_id WHERE x.asset_id = a.id "
@@ -218,6 +223,41 @@ def _asset_filters(
             where.append(f"{col} {op} ?")
             args.append(v)
     return where, args
+
+
+MAX_Q = 200
+
+
+def text_query(q: str) -> tuple[str, list]:
+    """SQL for the search box (K4). A photo matches when
+
+    * every word is in its file name, title, tags, notes or text (the last word may be the start of
+      a word, so results appear while typing), or
+    * its text contains the query exactly, ignoring case (3+ characters: error codes, part of a
+      phone number, part of a word), or
+    * the query is mostly digits and a phone number found in its text contains them (spaces,
+      dashes and brackets ignored).
+    """
+    q = q.strip()[:MAX_Q]
+    clauses, args = [], []
+    words = re.findall(r"\w+", q)
+    if words:
+        quoted = [f'"{w}"' for w in words[:20]]
+        quoted[-1] += "*"
+        clauses.append("a.id IN (SELECT rowid FROM asset_fts WHERE asset_fts MATCH ?)")
+        args.append(" ".join(quoted))
+    if len(q) >= 3:
+        clauses.append("a.id IN (SELECT rowid FROM ocr_trigram WHERE ocr_trigram MATCH ?)")
+        args.append('"' + q.replace('"', '""') + '"')
+    digits = re.sub(r"\D", "", q)
+    if len(digits) >= 4 and len(digits) >= 0.6 * len(re.sub(r"\s", "", q)):
+        clauses.append(
+            "a.id IN (SELECT asset_id FROM entities WHERE entity_type = 'phone' AND normalized_value LIKE ?)"
+        )
+        args.append(f"%{digits}%")
+    if not clauses:  # only punctuation, 1-2 characters: nothing can match
+        return "0", []
+    return "(" + " OR ".join(clauses) + ")", args
 
 
 def list_assets(
@@ -295,6 +335,7 @@ _FACET_OWN = {
     "date": ("date_from", "date_to"),
     "size": ("min_bytes", "max_bytes"),
     "type": ("type",),
+    "q": (),  # the search text narrows every section
 }
 
 

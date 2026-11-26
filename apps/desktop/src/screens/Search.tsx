@@ -1,25 +1,38 @@
-// Search by description and "More like this" (T4). Results come from CLIP on this PC, best
-// match first. Clicking a photo opens its details; the arrows step through the results.
-import { ApiError, useAi, useSearch, useSimilar, useTeachTag } from "@imagevault/api-client";
+// Search (T4 + K4). First the photos whose words or text match (name, title, tags, notes, the text
+// in the picture, exact pieces like part of a phone number), then photos that look like the
+// description (CLIP, best match first). Clicking a photo opens its details; the arrows step
+// through all results. "Show in gallery" keeps the text search as a filter there.
+import { ApiError, useAi, useAssets, useSearch, useSimilar, useTeachTag } from "@imagevault/api-client";
 import { Button } from "@imagevault/ui";
-import type { SearchResults } from "@imagevault/shared-types";
+import type { AssetSummary, SearchResults } from "@imagevault/shared-types";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { EmptyState, ErrorView, errorText, LoadingRows } from "../components/States";
 import { AssetDetail } from "../detail/AssetDetail";
 import { num } from "../format";
+import { setFilters } from "../gallery/filters";
 import { useThumbUrl } from "../gallery/thumbs";
+
+const TEXT_LIMIT = 60;
+const MAX_Q = 200; // the engine's limit for a text search
 
 export function SearchScreen() {
   const [params] = useSearchParams();
-  const q = params.get("q") ?? "";
+  const q = (params.get("q") ?? "").trim();
   const ai = useAi();
-  const res = useSearch(q);
-  if (!q.trim()) return <EmptyState title="Search your photos">Type what you are looking for in the search box above, for example “dog on a beach”.</EmptyState>;
-  if (ai.data && !ai.data.installed) return <NeedsModels />;
-  return <Results key={q.trim()} title={`“${q.trim()}”`} res={res} prompt={q.trim()} />;
+  const installed = ai.data?.installed ?? false;
+  const res = useSearch(installed ? q : "");
+  const text = useAssets({ q: q.slice(0, MAX_Q), limit: TEXT_LIMIT });
+  if (!q)
+    return (
+      <EmptyState title="Search your photos">
+        Type words from a photo, its text or its tags (“invoice”, part of an error code or phone number), or describe it
+        (“dog on a beach”).
+      </EmptyState>
+    );
+  return <Results key={q} title={`“${q}”`} res={installed ? res : null} prompt={q} text={text} textQ={q.slice(0, MAX_Q)} />;
 }
 
 export function SimilarScreen() {
@@ -37,34 +50,108 @@ function NeedsModels() {
   );
 }
 
+type TextResult = ReturnType<typeof useAssets>;
+
 function Results({
   title,
   res,
   source,
   prompt,
+  text,
+  textQ,
 }: {
   title: string;
-  res: UseQueryResult<SearchResults>;
+  /** CLIP results; null when the AI models are not installed (text matches only). */
+  res: UseQueryResult<SearchResults> | null;
   source?: number;
   /** Set on a search by description: offers "Teach a tag" (T5). */
   prompt?: string;
+  /** K4: photos whose words or text match. */
+  text?: TextResult;
+  textQ?: string;
 }) {
   const thumb = useThumbUrl();
+  const navigate = useNavigate();
   const [keep, setKeep] = useState<number | null>(null); // teaching: how many of the best matches count
   const [openId, setOpenId] = useState<number | null>(null);
   const [full, setFull] = useState(false);
-  const items = res.data?.items ?? [];
+  const items = res?.data?.items ?? [];
+  const textItems: AssetSummary[] = text?.data?.pages.flatMap((p) => p.items) ?? [];
+  const order = [...textItems.map((a) => a.id), ...items.map((h) => h.id).filter((id) => !textItems.some((a) => a.id === id))];
   const step = useCallback(
     (d: -1 | 1) =>
       setOpenId((cur) => {
-        const i = items.findIndex((h) => h.id === cur);
-        return items[Math.min(items.length - 1, Math.max(0, i + d))]?.id ?? cur;
+        const i = order.indexOf(cur ?? -1);
+        return order[Math.min(order.length - 1, Math.max(0, i + d))] ?? cur;
       }),
-    [items],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [order.join(",")],
   );
 
+  let textBlock = null;
+  if (text && textQ) {
+    const more = text.hasNextPage;
+    textBlock = (
+      <section aria-label="Text matches" className="search-section">
+        <h2 className="section-title">
+          Words and text
+          {textItems.length ? (
+            <span className="muted small">
+              {" "}
+              · {more ? `${textItems.length}+` : num(textItems.length)} {textItems.length === 1 ? "photo" : "photos"}
+            </span>
+          ) : null}
+          {textItems.length ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                setFilters({ q: textQ });
+                navigate("/photos");
+              }}
+            >
+              Show in gallery
+            </Button>
+          ) : null}
+        </h2>
+        {text.isPending ? (
+          <LoadingRows rows={1} label="Searching text" />
+        ) : text.isError ? (
+          <ErrorView what="the text search" error={text.error} onRetry={() => void text.refetch()} />
+        ) : !textItems.length ? (
+          <p className="muted small">No photo has these words in its name, tags, notes or text.</p>
+        ) : (
+          <ul className="search-grid" aria-label="Text matches">
+            {textItems.map((a) => {
+              const src = thumb(a.thumb_path);
+              return (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    className={a.id === openId ? "selected" : undefined}
+                    aria-label={a.file_name ?? a.uid}
+                    title={a.file_name ?? undefined}
+                    onClick={() => setOpenId(a.id)}
+                  >
+                    {src ? <img src={src} alt="" loading="lazy" /> : <span className="muted small">No preview</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    );
+  }
+
   let body;
-  if (res.isPending) body = <LoadingRows rows={4} label="Searching" />;
+  if (res === null)
+    body = (
+      <p className="muted small">
+        To also find photos by what they show (“dog on a beach”), download the AI models in{" "}
+        <Link to="/settings">Settings → Automatic tags</Link>.
+      </p>
+    );
+  else if (res.isPending) body = <LoadingRows rows={4} label="Searching" />;
   else if (res.isError) {
     const e = res.error;
     body =
@@ -111,17 +198,30 @@ function Results({
       <div className="screen-head">
         <h1 className="screen-title">
           {title}
-          {items.length ? <span className="muted"> · best {num(items.length)} matches</span> : null}
+          {items.length && !text ? <span className="muted"> · best {num(items.length)} matches</span> : null}
         </h1>
       </div>
-      {res.data && res.data.photos_analysed ? (
+      {res?.data && res.data.photos_analysed ? (
         <p className="muted small">
           Searched {num(res.data.photos_analysed)} analysed photos. Photos still waiting for automatic tags are not included yet.
         </p>
       ) : null}
       {prompt && items.length ? <TeachBar prompt={prompt} items={items} keep={keep} onKeep={setKeep} /> : null}
       <div className="gallery-wrap">
-        <div className="search-scroll">{body}</div>
+        <div className="search-scroll">
+          {textBlock}
+          {text ? (
+            <section aria-label="Looks like" className="search-section">
+              <h2 className="section-title">
+                Looks like this
+                {items.length ? <span className="muted small"> · best {num(items.length)} matches</span> : null}
+              </h2>
+              {body}
+            </section>
+          ) : (
+            body
+          )}
+        </div>
         {openId !== null ? (
           <AssetDetail id={openId} full={full} onToggleFull={() => setFull((f) => !f)} onClose={() => setOpenId(null)} onStep={step} />
         ) : null}
