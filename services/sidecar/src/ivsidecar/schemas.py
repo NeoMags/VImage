@@ -546,3 +546,61 @@ class AiStatus(Out):
     photos_waiting: int
     photos_failed: int
     photos_with_ai_tags: int
+
+
+# ---------------------------------------------------------------------------- duplicates (D1)
+DuplicateTab = Literal["copies", "similar"]
+
+
+class DuplicateMember(Out):
+    id: int
+    uid: str
+    kind: AssetKind
+    mime_type: str
+    date: str | None
+    byte_size: int
+    width: int | None
+    height: int | None
+    is_favorite: bool
+    thumb_path: str | None
+    path: str | None
+    """Relative path of one location (a present one first), to show which folder it is in."""
+    locations: int
+    similarity: float
+    """Copies: 1 - differing bits / 64. Similar shots: CLIP cosine. Best match within the group."""
+    suggested_keep: bool
+
+
+class DuplicateGroup(Out):
+    id: int
+    level: DuplicateTab
+    members: list[DuplicateMember]
+    """Visible photos only, suggested keeper first."""
+
+
+class DuplicateGroups(Out):
+    total: int
+    items: list[DuplicateGroup]
+
+
+class DuplicateSummary(Out):
+    copies: int
+    similar: int
+    multi_location: int
+    """Photos whose identical file is in two or more places."""
+    scanning: bool
+    scan_error: str | None
+
+
+class DuplicateResolved(Out):
+    kept: list[int]
+    hidden: list[int]
+
+
+class DuplicatesResolvedAll(Out):
+    groups: int
+    hidden: int
+
+
+class DuplicateDismissed(Out):
+    pairs: int

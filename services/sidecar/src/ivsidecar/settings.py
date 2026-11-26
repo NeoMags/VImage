@@ -65,8 +65,23 @@ class AiOptions(BaseModel):
     max_tags: int = Field(default=8, ge=1, le=20)
 
 
+class DuplicateOptions(BaseModel):
+    """Duplicate finder thresholds (D1). Changing them takes effect for new photos; "Scan again"
+    applies them to the whole library."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    phash_max: int = Field(default=8, ge=0, le=16)
+    """Copies: most differing bits (of 64) between two perceptual hashes."""
+    clip_min: float = Field(default=0.95, ge=0.8, le=1.0)
+    """Similar shots: least CLIP cosine similarity."""
+    window_min: int = Field(default=10, ge=1, le=1440)
+    """Similar shots: most minutes between the two photos' dates."""
+
+
 GROUPS: dict[str, type[BaseModel]] = {
     "ai": AiOptions,
+    "duplicates": DuplicateOptions,
     "resources": Resources,
     "queue": QueueState,
     "scan": ScanOptions,

@@ -57,6 +57,20 @@ B8a status (2026-11-25): rows marked **Built** exist. B8b (same day): every erro
 | `GET /ai/taught` | T5: `[{tag_id, name, prompt, threshold, photos, created_at}]` |
 | `DELETE /ai/taught/{tag_id}` | T5 undo: drops the rule and the AI copies of the tag that you have not accepted; accepted ones stay. `{photos_untagged}`; 404 if not taught |
 
+### Duplicates (D1, built)
+| Method & path | Purpose |
+|---|---|
+| `GET /duplicates?tab=copies\|similar&offset&limit` | Open groups, newest first: `{total, items: [{id, level, members}]}`. Members are visible photos only, suggested keeper first (`suggested_keep`), with size, pixels, date, one location `path`, `locations` count and `similarity` |
+| `GET /duplicates:summary` | `{copies, similar, multi_location, scanning, scan_error}` for the sidebar badge |
+| `POST /duplicates/{id}/resolve` `{keep?: [ids]}` | Keep those (default the suggested one), hide the rest. The first kept photo gets the hidden ones' tags, manual collections and favourite. 409 if the group is not open or `keep` is not in it |
+| `POST /duplicates/{id}/dismiss` | "Not duplicates": every pair is remembered and never grouped again |
+| `POST /duplicates:resolve-all` `{tab}` | Keep the suggested photo in every open group of that tab: `{groups, hidden}` |
+| `POST /duplicates:rescan` | 202; rebuilds open groups in the background (task progress `duplicates`, then event `duplicates.updated`). Resolved and dismissed groups are kept |
+| `GET/PUT /settings/duplicates` | `{phash_max 0–16 (8), clip_min 0.8–1 (0.95), window_min 1–1440 (10)}` |
+| `GET /assets?multi_location=true` | Photos whose identical file is in two or more places |
+
+Nothing deletes or moves a file: hiding is VImage's own flag, undone from the Hidden view.
+
 ### Phase D2–D3
 | Method & path | Purpose |
 |---|---|
@@ -64,7 +78,6 @@ B8a status (2026-11-25): rows marked **Built** exist. B8b (same day): every erro
 | `GET /assets/{id}/text` | OCR text + line boxes |
 | `GET/PATCH /knowledge-cards/{id}` · `GET …/export?format=md|pdf` | |
 | `POST /assets/{id}/tags/{tag_id}/confirm` · `/reject` | provenance actions |
-| `GET /duplicates?status=open` · `POST /duplicates/{id}/resolve` | keep/hide only |
 | `GET/POST /saved-searches` | |
 
 ### Phase D4–D6

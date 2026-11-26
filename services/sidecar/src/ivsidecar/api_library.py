@@ -57,6 +57,7 @@ def asset_filters(
     max_h: int | None = Query(None, ge=1),
     min_bytes: int | None = Query(None, ge=0),
     max_bytes: int | None = Query(None, ge=0),
+    multi_location: bool | None = None,
 ) -> dict:
     """The asset filters shared by GET /assets and GET /assets:months."""
     return {k: v for k, v in locals().items()}
