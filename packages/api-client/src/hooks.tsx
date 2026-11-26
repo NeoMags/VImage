@@ -578,6 +578,15 @@ export function useAssetTextEdits(id: number) {
       mutationFn: () => unwrap(api.DELETE("/v1/assets/{asset_id}/text/edit", path)),
       onSuccess: done,
     }),
+    /** K3: screenshot / scan / photo as you say; null hands it back to ImageVault. */
+    setType: useMutation({
+      mutationFn: (type: "screenshot" | "scan" | "photo" | null) =>
+        unwrap(api.PUT("/v1/assets/{asset_id}/type", { ...path, body: { type } })),
+      onSuccess: (data) => {
+        done(data);
+        void refresh(qc, keys.assets.all);
+      },
+    }),
     readAgain: useMutation({
       mutationFn: () => unwrap(api.POST("/v1/assets/{asset_id}/text:rerun", path)),
       onSuccess: done,

@@ -130,6 +130,8 @@ class SizeBounds(Out):
 class AssetFacets(Out):
     total: int
     kind: list[FacetValue]
+    type: list[FacetValue]
+    """Screenshot, scan, photo (K3)."""
     format: list[FacetValue]
     status: list[FacetValue]
     availability: list[FacetValue]
@@ -560,6 +562,42 @@ class TextLine(Out):
     confidence: float | None
 
 
+EntityType = Literal[
+    "url",
+    "email",
+    "phone",
+    "date",
+    "address",
+    "code",
+    "command",
+    "error_message",
+    "product",
+    "technical_term",
+    "person_name",
+    "organization",
+    "amount",
+    "other",
+]
+
+
+class TextEntity(Out):
+    id: int
+    type: EntityType
+    value: str
+    """As written in the photo."""
+    normalized: str | None
+    """Comparable form: ISO date, digits of a phone number, 'INR 1250.00', lower-case email/host."""
+    line_no: int | None
+    """The OCR line (box) it was found in; None when it has no box."""
+    origin: Literal["ai", "user"]
+
+
+class PictureType(Out):
+    value: Literal["screenshot", "scan", "photo"]
+    origin: Literal["ai", "user"]
+    confidence: float | None
+
+
 class AssetText(Out):
     state: Literal["not_read", "waiting", "reading", "done", "failed"]
     error: str | None
@@ -571,6 +609,9 @@ class AssetText(Out):
     updated_at: str | None
     lines: list[TextLine]
     """Lines OCR found, with boxes (kept even after you edit the text)."""
+    entities: list[TextEntity]
+    type: PictureType | None
+    """Screenshot, scan or photo (K3); None when it cannot be told."""
 
 
 class OcrStatus(Out):

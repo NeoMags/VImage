@@ -48,6 +48,9 @@ const KIND_LABEL: Record<string, string> = {
 };
 export const kindLabel = (k: string) => KIND_LABEL[k] ?? k;
 
+const TYPE_LABEL: Record<string, string> = { screenshot: "Screenshots", scan: "Scans", photo: "Camera photos" };
+export const typeLabel = (t: string) => TYPE_LABEL[t] ?? t;
+
 /** "image/jpeg" → "JPEG", "image/x-canon-cr2" → "CR2". */
 export function formatLabel(mime: string): string {
   const sub = mime.split("/")[1] ?? mime;
@@ -92,6 +95,9 @@ export function chipsFor(f: Filters, names: Names): Chip[] {
   const chips: Chip[] = [];
   for (const k of asList(f.kind)) {
     chips.push({ key: `kind:${k}`, label: kindLabel(k), remove: (x) => ({ ...x, kind: asList(x.kind).filter((v) => v !== k) }) });
+  }
+  for (const t of asList(f.type)) {
+    chips.push({ key: `type:${t}`, label: typeLabel(t), remove: (x) => ({ ...x, type: asList(x.type).filter((v) => v !== t) }) });
   }
   for (const m of asList(f.mime)) {
     chips.push({ key: `mime:${m}`, label: formatLabel(m), remove: (x) => ({ ...x, mime: asList(x.mime).filter((v) => v !== m) }) });

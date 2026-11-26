@@ -7,22 +7,30 @@ GET    /v1/assets/{id}/text             the text, where it came from, and its li
 PUT    /v1/assets/{id}/text             {text}: your version; later OCR runs keep it
 DELETE /v1/assets/{id}/text/edit        drop your edit, use the read text again
 POST   /v1/assets/{id}/text:rerun       read this photo again now
+PUT    /v1/assets/{id}/type             {type}: screenshot / scan / photo as you say (K3)
 """
 
 from __future__ import annotations
 
 import sqlite3
 import threading
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import handlers, settings
+from . import entities, handlers, settings
 from . import library as lib
 from . import schemas as S
 from . import text as T
 from .events import bus
 from .jobqueue import JobQueue
+
+
+class TypeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["screenshot", "scan", "photo"] | None
+    """None: let ImageVault decide again."""
 
 
 class TextBody(BaseModel):
@@ -97,6 +105,12 @@ def build_router(conn: sqlite3.Connection, db_lock: threading.RLock, queue: JobQ
     @r.delete("/assets/{asset_id}/text/edit")
     def revert(asset_id: int) -> S.AssetText:
         run(T.revert_text, asset_id, write=True, asset=asset_id)
+        return run(T.get_text, asset_id)
+
+    @r.put("/assets/{asset_id}/type")
+    def put_type(asset_id: int, body: TypeBody) -> S.AssetText:
+        """Screenshot, scan or photo, as you say; null hands it back to ImageVault."""
+        run(entities.set_type, asset_id, body.type, write=True, asset=asset_id)
         return run(T.get_text, asset_id)
 
     @r.post("/assets/{asset_id}/text:rerun", status_code=202)

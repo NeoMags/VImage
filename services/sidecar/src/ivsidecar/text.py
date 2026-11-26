@@ -10,6 +10,7 @@ from __future__ import annotations
 import sqlite3
 
 from . import handlers
+from .entities import get_type, list_entities, refresh_entities
 from .library import Invalid, NotFound, _exists, audit
 
 MAX_TEXT = 100_000
@@ -62,6 +63,8 @@ def get_text(conn: sqlite3.Connection, asset_id: int) -> dict:
         "confidence": cur[4] if cur else None,
         "updated_at": cur[5] if cur else None,
         "lines": lines,
+        "entities": list_entities(conn, asset_id),
+        "type": get_type(conn, asset_id),
     }
 
 
@@ -83,6 +86,7 @@ def set_text(conn: sqlite3.Connection, asset_id: int, text: str) -> None:
             (asset_id, text),
         )
     handlers.set_search_text(conn, asset_id, text)
+    refresh_entities(conn, asset_id)
     audit(conn, "text.edit", "asset", asset_id, {"len": len(before or "")}, {"len": len(text)})
 
 
@@ -99,6 +103,7 @@ def revert_text(conn: sqlite3.Connection, asset_id: int) -> None:
     if ai:
         conn.execute("UPDATE extracted_text SET is_current = 1 WHERE id = ?", (ai[0],))
     handlers.set_search_text(conn, asset_id, ai[1] if ai else "")
+    refresh_entities(conn, asset_id)
     audit(conn, "text.revert", "asset", asset_id)
 
 

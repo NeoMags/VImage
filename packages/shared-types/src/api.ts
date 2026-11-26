@@ -346,6 +346,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/assets/{asset_id}/type": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Type
+         * @description Screenshot, scan or photo, as you say; null hands it back to ImageVault.
+         */
+        put: operations["put_type_v1_assets__asset_id__type_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assets/{asset_id}/unhide": {
         parameters: {
             query?: never;
@@ -1143,6 +1163,8 @@ export interface components {
             tags: components["schemas"]["FacetTag"][];
             /** Total */
             total: number;
+            /** Type */
+            type: components["schemas"]["FacetValue"][];
         };
         /** AssetJob */
         AssetJob: {
@@ -1300,6 +1322,8 @@ export interface components {
             confidence: number | null;
             /** Engine */
             engine: string | null;
+            /** Entities */
+            entities: components["schemas"]["TextEntity"][];
             /** Error */
             error: string | null;
             /** Lines */
@@ -1313,6 +1337,7 @@ export interface components {
             state: "not_read" | "waiting" | "reading" | "done" | "failed";
             /** Text */
             text: string;
+            type: components["schemas"]["PictureType"] | null;
             /** Updated At */
             updated_at: string | null;
         };
@@ -1805,6 +1830,21 @@ export interface components {
             /** Unreachable */
             unreachable: number;
         };
+        /** PictureType */
+        PictureType: {
+            /** Confidence */
+            confidence: number | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "ai" | "user";
+            /**
+             * Value
+             * @enum {string}
+             */
+            value: "screenshot" | "scan" | "photo";
+        };
         /** Position */
         Position: {
             /** Position */
@@ -2155,6 +2195,27 @@ export interface components {
             /** Text */
             text: string;
         };
+        /** TextEntity */
+        TextEntity: {
+            /** Id */
+            id: number;
+            /** Line No */
+            line_no: number | null;
+            /** Normalized */
+            normalized: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "ai" | "user";
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "url" | "email" | "phone" | "date" | "address" | "code" | "command" | "error_message" | "product" | "technical_term" | "person_name" | "organization" | "amount" | "other";
+            /** Value */
+            value: string;
+        };
         /** TextLine */
         TextLine: {
             /** Confidence */
@@ -2171,6 +2232,11 @@ export interface components {
             x: number;
             /** Y */
             y: number;
+        };
+        /** TypeBody */
+        TypeBody: {
+            /** Type */
+            type: ("screenshot" | "scan" | "photo") | null;
         };
         /** Untaught */
         Untaught: {
@@ -2430,6 +2496,7 @@ export interface operations {
                 max_h?: number | null;
                 min_bytes?: number | null;
                 max_bytes?: number | null;
+                type?: ("screenshot" | "scan" | "photo")[] | null;
             };
             header?: {
                 authorization?: string;
@@ -3008,6 +3075,43 @@ export interface operations {
             };
         };
     };
+    put_type_v1_assets__asset_id__type_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TypeBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetText"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     unhide_v1_assets__asset_id__unhide_post: {
         parameters: {
             query?: never;
@@ -3098,6 +3202,7 @@ export interface operations {
                 max_h?: number | null;
                 min_bytes?: number | null;
                 max_bytes?: number | null;
+                type?: ("screenshot" | "scan" | "photo")[] | null;
             };
             header?: {
                 authorization?: string;
@@ -3148,6 +3253,7 @@ export interface operations {
                 max_h?: number | null;
                 min_bytes?: number | null;
                 max_bytes?: number | null;
+                type?: ("screenshot" | "scan" | "photo")[] | null;
             };
             header?: {
                 authorization?: string;

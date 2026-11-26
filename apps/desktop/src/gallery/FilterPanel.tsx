@@ -14,6 +14,7 @@ import {
   type Filters,
   formatLabel,
   kindLabel,
+  typeLabel,
   MB,
   setFilters,
   statusLabel,
@@ -140,7 +141,11 @@ export function FilterPanel({
   const collCount = new Map((d?.collection ?? []).map((c) => [c.id, c.count]));
   const srcCount = new Map((d?.source ?? []).map((s) => [s.id, s.count]));
 
-  const listOf = (facet: "kind" | "format" | "status", key: "kind" | "mime" | "status", label: (v: string) => string) => {
+  const listOf = (
+    facet: "kind" | "type" | "format" | "status",
+    key: "kind" | "type" | "mime" | "status",
+    label: (v: string) => string,
+  ) => {
     const selected = (Array.isArray(f[key]) ? f[key] : f[key] != null ? [f[key]] : []) as string[];
     const rows = [...(d?.[facet] ?? [])];
     for (const v of selected) if (!rows.some((r) => r.value === v)) rows.push({ value: v, count: 0 });
@@ -150,7 +155,11 @@ export function FilterPanel({
         {rows.map((r) => (
           <li key={r.value}>
             <label className="check">
-              <input type="checkbox" checked={selected.includes(r.value)} onChange={() => set({ [key]: toggle(selected, r.value) })} />
+              <input
+                type="checkbox"
+                checked={selected.includes(r.value)}
+                onChange={() => set({ [key]: toggle(selected, r.value) } as Filters)}
+              />
               {label(r.value)}
               <Count n={r.count} />
             </label>
@@ -181,6 +190,9 @@ export function FilterPanel({
       <div className={`filter-body${facets.isFetching ? " stale" : ""}`}>
         <Section title="Kind" active={f.kind != null}>
           {listOf("kind", "kind", kindLabel)}
+        </Section>
+        <Section title="Type" active={f.type != null}>
+          {listOf("type", "type", typeLabel)}
         </Section>
         <Section title="Date" active={!!(f.from || f.to)}>
           <div className="range">

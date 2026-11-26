@@ -323,6 +323,10 @@ def _apply_thumbnail(conn: sqlite3.Connection, job: sqlite3.Row, d: dict | None)
             (d["phash"], d["width"], d["height"], aid),
         )
     conn.execute(f"UPDATE assets SET status = 'ready', error = NULL, updated_at = {NOW} WHERE id = ?", (aid,))
+    if d is not None:  # K3: a first guess from name, camera and size; refined once the text is read
+        from .entities import classify
+
+        classify(conn, aid)
 
 
 def apply_failure(conn: sqlite3.Connection, job: sqlite3.Row, error: str) -> None:
@@ -546,6 +550,10 @@ def store_ocr(conn: sqlite3.Connection, asset_id: int, d: dict) -> str | None:
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [(tid, i, ln["text"], ln["x"], ln["y"], ln["w"], ln["h"], ln.get("confidence")) for i, ln in enumerate(lines)],
     )
+    from .entities import classify, refresh_entities
+
+    refresh_entities(conn, asset_id)  # from your text when you edited it, else from these lines
+    classify(conn, asset_id)
     if yours:
         return "kept your edited text"
     set_search_text(conn, asset_id, full)

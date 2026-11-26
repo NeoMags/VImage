@@ -465,11 +465,19 @@
           "total": {
             "title": "Total",
             "type": "integer"
+          },
+          "type": {
+            "items": {
+              "$ref": "#/components/schemas/FacetValue"
+            },
+            "title": "Type",
+            "type": "array"
           }
         },
         "required": [
           "total",
           "kind",
+          "type",
           "format",
           "status",
           "availability",
@@ -1101,6 +1109,13 @@
             ],
             "title": "Engine"
           },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/TextEntity"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
           "error": {
             "anyOf": [
               {
@@ -1149,6 +1164,16 @@
             "title": "Text",
             "type": "string"
           },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PictureType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "updated_at": {
             "anyOf": [
               {
@@ -1169,7 +1194,9 @@
           "engine",
           "confidence",
           "updated_at",
-          "lines"
+          "lines",
+          "entities",
+          "type"
         ],
         "title": "AssetText",
         "type": "object"
@@ -2752,6 +2779,46 @@
         "title": "PhotoCounts",
         "type": "object"
       },
+      "PictureType": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "origin": {
+            "enum": [
+              "ai",
+              "user"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "value": {
+            "enum": [
+              "screenshot",
+              "scan",
+              "photo"
+            ],
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "origin",
+          "confidence"
+        ],
+        "title": "PictureType",
+        "type": "object"
+      },
       "Position": {
         "additionalProperties": false,
         "properties": {
@@ -3767,6 +3834,79 @@
         "title": "TextBody",
         "type": "object"
       },
+      "TextEntity": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "line_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line No"
+          },
+          "normalized": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized"
+          },
+          "origin": {
+            "enum": [
+              "ai",
+              "user"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "url",
+              "email",
+              "phone",
+              "date",
+              "address",
+              "code",
+              "command",
+              "error_message",
+              "product",
+              "technical_term",
+              "person_name",
+              "organization",
+              "amount",
+              "other"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "value",
+          "normalized",
+          "line_no",
+          "origin"
+        ],
+        "title": "TextEntity",
+        "type": "object"
+      },
       "TextLine": {
         "additionalProperties": false,
         "properties": {
@@ -3816,6 +3956,32 @@
           "confidence"
         ],
         "title": "TextLine",
+        "type": "object"
+      },
+      "TypeBody": {
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "screenshot",
+                  "scan",
+                  "photo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "TypeBody",
         "type": "object"
       },
       "Untaught": {
@@ -4574,6 +4740,30 @@
                 }
               ],
               "title": "Max Bytes"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "screenshot",
+                      "scan",
+                      "photo"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
             }
           },
           {
@@ -5473,6 +5663,66 @@
         "summary": "Rerun"
       }
     },
+    "/v1/assets/{asset_id}/type": {
+      "put": {
+        "description": "Screenshot, scan or photo, as you say; null hands it back to ImageVault.",
+        "operationId": "put_type_v1_assets__asset_id__type_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TypeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetText"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Type"
+      }
+    },
     "/v1/assets/{asset_id}/unhide": {
       "post": {
         "operationId": "unhide_v1_assets__asset_id__unhide_post",
@@ -5902,6 +6152,30 @@
             }
           },
           {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "screenshot",
+                      "scan",
+                      "photo"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -6247,6 +6521,30 @@
                 }
               ],
               "title": "Max Bytes"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "screenshot",
+                      "scan",
+                      "photo"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
             }
           },
           {

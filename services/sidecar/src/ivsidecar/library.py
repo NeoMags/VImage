@@ -158,6 +158,7 @@ def _asset_filters(
     max_h: int | None = None,
     min_bytes: int | None = None,
     max_bytes: int | None = None,
+    type: list[str] | None = None,
 ) -> tuple[list[str], list]:
     """WHERE clauses shared by the asset list and the month counts, so both always agree."""
     where, args = ["a.is_hidden = ?"], [int(hidden)]
@@ -183,6 +184,12 @@ def _asset_filters(
     for t in tag or []:  # all given tags
         where.append("EXISTS (SELECT 1 FROM asset_tags x WHERE x.asset_id = a.id AND x.tag_id = ? AND x.rejected = 0)")
         args.append(t)
+    if type:  # K3 picture type: screenshot / scan / photo (any of them)
+        where.append(
+            "EXISTS (SELECT 1 FROM asset_categories x JOIN categories c ON c.id = x.category_id WHERE x.asset_id = a.id "
+            f"AND c.domain = 'source_type' AND x.rejected = 0 AND c.slug IN ({','.join('?' for _ in type)}))"
+        )
+        args += type
     if collection is not None:
         where.append("EXISTS (SELECT 1 FROM collection_assets c WHERE c.asset_id = a.id AND c.collection_id = ?)")
         args.append(collection)
@@ -287,6 +294,7 @@ _FACET_OWN = {
     "availability": ("availability",),
     "date": ("date_from", "date_to"),
     "size": ("min_bytes", "max_bytes"),
+    "type": ("type",),
 }
 
 
@@ -386,6 +394,13 @@ def asset_facets(conn: sqlite3.Connection, tag_q: str | None = None, **filters) 
             ca,
         ).fetchall()
     )
+    tw, ta = where("type")
+    types = conn.execute(
+        f"SELECT c.slug, count(*) FROM assets a JOIN asset_categories x ON x.asset_id = a.id AND x.rejected = 0 "
+        f"JOIN categories c ON c.id = x.category_id AND c.domain = 'source_type' WHERE {tw} "
+        "GROUP BY c.slug ORDER BY count(*) DESC, c.slug",
+        ta,
+    ).fetchall()
     date_set = bool(filters.get("date_from") or filters.get("date_to"))
     size_set = filters.get("min_bytes") is not None or filters.get("max_bytes") is not None
     if not date_set and not size_set:  # both bounds ignore only their own filter: one query
@@ -404,6 +419,7 @@ def asset_facets(conn: sqlite3.Connection, tag_q: str | None = None, **filters) 
     return {
         "total": total,
         "kind": ranked("kind"),
+        "type": [{"value": v, "count": n} for v, n in types],
         "format": ranked("format"),
         "status": ranked("status"),
         "availability": grouped("availability", AVAILABILITY_SQL),
