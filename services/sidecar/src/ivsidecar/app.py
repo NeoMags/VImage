@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import __version__, api_ai, api_backup, api_status, handlers, probes, schemas, settings
+from . import __version__, api_ai, api_backup, api_duplicates, api_status, handlers, probes, schemas, settings
 from . import scanner as scan_mod
 from .api_library import build_router
 from .jobqueue import JobQueue
@@ -85,6 +85,7 @@ def create_app(
         api_backup.build_router(conn, db_lock, state, queue, scanner, watcher), dependencies=[Depends(require_token)]
     )
     app.include_router(api_ai.build_router(conn, db_lock, queue), dependencies=[Depends(require_token)])
+    app.include_router(api_duplicates.build_router(conn, db_lock), dependencies=[Depends(require_token)])
     if dev_origins():
         _install_dev_thumbs(app, conn, token)
 

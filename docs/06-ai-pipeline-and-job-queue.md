@@ -12,7 +12,7 @@
 | 7 | entities | D2 | regex + validators (`phonenumbers`, URL/email parsers, date parser), code/command/error heuristics | `entities` linked to `text_regions` |
 | 8 | knowledge | D2 | template card from OCR + entities + category (no LLM needed) | `knowledge_cards` |
 | 9 | embed | T2 (built) | OpenAI CLIP ViT-B/32 quantized ONNX (Xenova @6b7c523, MIT), 224 px centre crop, L2-normalised 512-d; registered as the active image model in `embedding_models` (replaces the planned OpenCLIP laion2b model, T1 decision) | `embeddings` + `vec_clip_b32` |
-| 10 | duplicates | D3 | sha256 (exact) → pHash Hamming ≤ 6 **[proposed]** → CLIP cosine ≥ 0.95 **[proposed]** | `duplicate_groups` |
+| 10 | duplicates | D3 | built in D1 (§10): sha256 (exact = one asset, several locations) → pHash Hamming ≤ 8 (Copies, checked when the thumbnail is written) → CLIP cosine ≥ 0.95 and dates ≤ 10 min apart (Similar shots, checked when the vector is written) | `duplicate_groups` |
 | 11 | describe | D5, optional | Ollama vision model on localhost (user installs Ollama) | `descriptions`, richer cards |
 | 12 | faces | D6, opt-in | detector + embedder (licence note Q4) | `regions`, `asset_faces` |
 
@@ -84,3 +84,13 @@ Model files (about 886 MB) are downloaded once from Hugging Face at pinned revis
 **T4 (search by description).** The engine loads the CLIP text model on the first search (`stages/ai.ClipText`) with a built-in CLIP BPE tokenizer (`stages/clip_tokenizer.py`, no `tokenizers` package: it would add huggingface-hub and an HTTP stack). Text and image vectors share CLIP's space; the query vector is matched against `vec_clip_b32` (exact, cosine). Measured: "More like this" over 100k vectors 97 ms (Linux, budget 300 ms). UI: header search box (Ctrl+K or /), results screen, "More like this" in photo details.
 
 **T5 (teach a tag).** On a description search, "Teach a tag from this search…" lets you pick how many of the best matches count (the rest dim) and name the tag. The score of the last match you keep becomes the rule's threshold; the rule is saved in `taught_tags` (migration 0006: tag, prompt, text vector, threshold). Teaching tags every photo at or above it now (nearest 256 first; if all pass, nearest 4096; a full scan only if all 4096 pass), and the embed stage applies every rule to each newly analysed photo. Tags arrive as AI tags, so you review them like RAM++ ones; removed ones are not added back. Undo is under Settings → Automatic tags. Measured at 100k vectors (Linux): keeping the best 120 of a search 138 ms (budget 750 ms; 1500 ms Windows guard); a loose bar tagging 1,132 photos 482 ms. Large k is slow on the Windows CI runner (k = 4096 took 3.3 s), so the loose case has a 4 s Windows guard until B21 measures on Neo's PC.
+
+## 10. Duplicate finder (D1)
+
+Not a separate job: both checks are a few indexed queries, so they run inside the result transaction of the stage that produces their input (thumbnail → pHash → Copies; embed → CLIP vector → Similar shots). A photo joins the open group of any match, and a photo matching two groups merges them. Hidden photos are never matched; pairs you dismissed are never linked again (`duplicate_dismissals`, migration 0007). "Scan again" (`duplicates.rescan`) rebuilds open groups with the current thresholds: Copies by tiled XOR + popcount over all pHashes in numpy, Similar shots by walking photos in date order and comparing each only with those inside the time window. Only the final write holds the database lock.
+
+Similar shots only use a real date (taken, else file modified), never "when it was added", so one import is not one time window.
+
+**Threshold (test set: 40 synthetic photo-like images × 5 edits, 780 unrelated pairs, `test_duplicates.py`).** Bits apart, max / median: resize 50% 2/0, JPEG q60 2/0, resize 25% + JPEG 2/0, brightness +10% 6/2, crop 5% 12/6. Closest unrelated pair: 18 bits. Recall of 5% crops: 70% at ≤ 6, 95% at ≤ 8, 97.5% at ≤ 10; no false matches at any of them. Default set to **8** (the plan proposed 6). Real photos are less varied than random textures (screenshots of the same app are the likely false matches); nothing is hidden without a click, and B21 checks accuracy on Neo's library **[unverified until then]**.
+
+**Speed (Linux container, 100k photos, 2% with a copy and 2% with a burst partner).** Full rescan 28.5 s (guard 60 s; Windows 120 s); per-photo checks median 2.1 ms; group list + summary 26 ms (after forcing the members-first join order: SQLite otherwise walked every visible photo per group, 1 s at 20k).

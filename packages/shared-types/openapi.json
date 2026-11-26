@@ -1674,6 +1674,310 @@
         "title": "Derivative",
         "type": "object"
       },
+      "DuplicateDismissed": {
+        "additionalProperties": false,
+        "properties": {
+          "pairs": {
+            "title": "Pairs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pairs"
+        ],
+        "title": "DuplicateDismissed",
+        "type": "object"
+      },
+      "DuplicateGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "level": {
+            "enum": [
+              "copies",
+              "similar"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateMember"
+            },
+            "title": "Members",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "level",
+          "members"
+        ],
+        "title": "DuplicateGroup",
+        "type": "object"
+      },
+      "DuplicateGroups": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateGroup"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "DuplicateGroups",
+        "type": "object"
+      },
+      "DuplicateMember": {
+        "additionalProperties": false,
+        "properties": {
+          "byte_size": {
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_favorite": {
+            "title": "Is Favorite",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "screenshot",
+              "video",
+              "pdf",
+              "drawing",
+              "document",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "locations": {
+            "title": "Locations",
+            "type": "integer"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "similarity": {
+            "title": "Similarity",
+            "type": "number"
+          },
+          "suggested_keep": {
+            "title": "Suggested Keep",
+            "type": "boolean"
+          },
+          "thumb_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumb Path"
+          },
+          "uid": {
+            "title": "Uid",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "uid",
+          "kind",
+          "mime_type",
+          "date",
+          "byte_size",
+          "width",
+          "height",
+          "is_favorite",
+          "thumb_path",
+          "path",
+          "locations",
+          "similarity",
+          "suggested_keep"
+        ],
+        "title": "DuplicateMember",
+        "type": "object"
+      },
+      "DuplicateOptions": {
+        "additionalProperties": false,
+        "description": "Duplicate finder thresholds (D1). Changing them takes effect for new photos; \"Scan again\"\napplies them to the whole library.",
+        "properties": {
+          "clip_min": {
+            "default": 0.95,
+            "maximum": 1.0,
+            "minimum": 0.8,
+            "title": "Clip Min",
+            "type": "number"
+          },
+          "phash_max": {
+            "default": 8,
+            "maximum": 16.0,
+            "minimum": 0.0,
+            "title": "Phash Max",
+            "type": "integer"
+          },
+          "window_min": {
+            "default": 10,
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Window Min",
+            "type": "integer"
+          }
+        },
+        "title": "DuplicateOptions",
+        "type": "object"
+      },
+      "DuplicateResolved": {
+        "additionalProperties": false,
+        "properties": {
+          "hidden": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Hidden",
+            "type": "array"
+          },
+          "kept": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Kept",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kept",
+          "hidden"
+        ],
+        "title": "DuplicateResolved",
+        "type": "object"
+      },
+      "DuplicateSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "copies": {
+            "title": "Copies",
+            "type": "integer"
+          },
+          "multi_location": {
+            "title": "Multi Location",
+            "type": "integer"
+          },
+          "scan_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Error"
+          },
+          "scanning": {
+            "title": "Scanning",
+            "type": "boolean"
+          },
+          "similar": {
+            "title": "Similar",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "copies",
+          "similar",
+          "multi_location",
+          "scanning",
+          "scan_error"
+        ],
+        "title": "DuplicateSummary",
+        "type": "object"
+      },
+      "DuplicatesResolvedAll": {
+        "additionalProperties": false,
+        "properties": {
+          "groups": {
+            "title": "Groups",
+            "type": "integer"
+          },
+          "hidden": {
+            "title": "Hidden",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "groups",
+          "hidden"
+        ],
+        "title": "DuplicatesResolvedAll",
+        "type": "object"
+      },
       "ExportBody": {
         "additionalProperties": false,
         "properties": {
@@ -2743,6 +3047,47 @@
           "requeued"
         ],
         "title": "Requeued",
+        "type": "object"
+      },
+      "ResolveAllBody": {
+        "additionalProperties": false,
+        "properties": {
+          "tab": {
+            "enum": [
+              "copies",
+              "similar"
+            ],
+            "title": "Tab",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tab"
+        ],
+        "title": "ResolveAllBody",
+        "type": "object"
+      },
+      "ResolveBody": {
+        "additionalProperties": false,
+        "properties": {
+          "keep": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep"
+          }
+        },
+        "title": "ResolveBody",
         "type": "object"
       },
       "Resources": {
@@ -4361,6 +4706,22 @@
             }
           },
           {
+            "in": "query",
+            "name": "multi_location",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Multi Location"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -5482,6 +5843,22 @@
             }
           },
           {
+            "in": "query",
+            "name": "multi_location",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Multi Location"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -5827,6 +6204,22 @@
                 }
               ],
               "title": "Max Bytes"
+            }
+          },
+          {
+            "in": "query",
+            "name": "multi_location",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Multi Location"
             }
           },
           {
@@ -6359,6 +6752,346 @@
           }
         },
         "summary": "Reorder"
+      }
+    },
+    "/v1/duplicates": {
+      "get": {
+        "operationId": "list_groups_v1_duplicates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tab",
+            "required": false,
+            "schema": {
+              "default": "copies",
+              "enum": [
+                "copies",
+                "similar"
+              ],
+              "title": "Tab",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateGroups"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Groups",
+        "tags": [
+          "duplicates"
+        ]
+      }
+    },
+    "/v1/duplicates/{group_id}/dismiss": {
+      "post": {
+        "operationId": "dismiss_v1_duplicates__group_id__dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateDismissed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss",
+        "tags": [
+          "duplicates"
+        ]
+      }
+    },
+    "/v1/duplicates/{group_id}/resolve": {
+      "post": {
+        "operationId": "resolve_v1_duplicates__group_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolveBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateResolved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve",
+        "tags": [
+          "duplicates"
+        ]
+      }
+    },
+    "/v1/duplicates:rescan": {
+      "post": {
+        "operationId": "rescan_v1_duplicates_rescan_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rescan",
+        "tags": [
+          "duplicates"
+        ]
+      }
+    },
+    "/v1/duplicates:resolve-all": {
+      "post": {
+        "operationId": "resolve_all_v1_duplicates_resolve_all_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveAllBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicatesResolvedAll"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve All",
+        "tags": [
+          "duplicates"
+        ]
+      }
+    },
+    "/v1/duplicates:summary": {
+      "get": {
+        "operationId": "summary_v1_duplicates_summary_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Summary",
+        "tags": [
+          "duplicates"
+        ]
       }
     },
     "/v1/export": {
@@ -6990,6 +7723,100 @@
           }
         },
         "summary": "Put Backup Settings"
+      }
+    },
+    "/v1/settings/duplicates": {
+      "get": {
+        "operationId": "get_settings_v1_settings_duplicates_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Settings",
+        "tags": [
+          "duplicates"
+        ]
+      },
+      "put": {
+        "operationId": "put_settings_v1_settings_duplicates_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Settings",
+        "tags": [
+          "duplicates"
+        ]
       }
     },
     "/v1/settings/resources": {

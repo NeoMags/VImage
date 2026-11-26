@@ -16,6 +16,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 
+from . import duplicates
 from .stages import PIPELINE_VERSION
 
 AI_STAGES = ("embed", "classify")
@@ -182,12 +183,15 @@ def apply_result(conn: sqlite3.Connection, job: sqlite3.Row, data: dict | None) 
         return "succeeded", _apply_metadata(conn, job, data)
     if stage == "thumbnail":
         _apply_thumbnail(conn, job, data)
-        if data is not None and ai_enabled(conn):
-            enqueue_ai(conn, job["asset_id"], prio + AI_PRIORITY_OFFSET)
+        if data is not None:
+            duplicates.check_copies(conn, job["asset_id"])  # D1: pHash is known from here on
+            if ai_enabled(conn):
+                enqueue_ai(conn, job["asset_id"], prio + AI_PRIORITY_OFFSET)
         return "succeeded", None
     if stage == "embed":
         _apply_embedding(conn, job["asset_id"], data["vector"])
         apply_taught_tags(conn, job["asset_id"])
+        duplicates.check_similar(conn, job["asset_id"])  # D1: needs the CLIP vector
         return "succeeded", None
     if stage == "classify":  # RAM++ tags (doc 06 stage 6)
         apply_ai_tags(conn, job["asset_id"], data["tags"])

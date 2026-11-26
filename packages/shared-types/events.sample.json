@@ -46,6 +46,9 @@
         "type": "collections.updated"
       },
       {
+        "type": "duplicates.updated"
+      },
+      {
         "type": "library.restored"
       },
       {

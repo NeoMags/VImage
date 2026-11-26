@@ -18,6 +18,10 @@ export const keys = {
     facets: (f: AssetFilter, tagQ: string) => ["assets", "facets", f, tagQ] as const,
     /** "Sorted by AI" groups: under "assets" so newly tagged photos refresh them. */
     aiGroups: ["assets", "aiGroups"] as const,
+    /** D2: under "assets" so hidden or newly processed photos refresh the groups. */
+    duplicates: ["assets", "duplicates"] as const,
+    duplicateGroups: (tab: "copies" | "similar", limit: number) => ["assets", "duplicates", tab, limit] as const,
+    duplicateSummary: ["assets", "duplicates", "summary"] as const,
   },
   asset: {
     all: ["asset"] as const,
@@ -31,6 +35,7 @@ export const keys = {
     scan: ["settings", "scan"] as const,
     backup: ["settings", "backup"] as const,
     ai: ["settings", "ai"] as const,
+    duplicates: ["settings", "duplicates"] as const,
   },
   ai: ["ai"] as const,
   /** Under "ai" so the ai.updated event refreshes it too. */

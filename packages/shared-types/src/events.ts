@@ -14,7 +14,7 @@ export type ScanProgressEvent = {
 };
 
 /** Progress of a long request (B19: export). Latest counters only. */
-export type TaskProgressEvent = { type: "task.progress"; task: "export"; done: number; total: number };
+export type TaskProgressEvent = { type: "task.progress"; task: "export" | "ai_models" | "duplicates"; done: number; total: number };
 
 export type LiveEvent =
   | { type: "asset.updated"; ids: number[] }
@@ -25,6 +25,8 @@ export type LiveEvent =
   | { type: "tags.updated" }
   | { type: "collections.updated" }
   | { type: "ai.updated" }
+  /** Duplicate groups changed (D1): a scan finished, or a group was resolved or dismissed. */
+  | { type: "duplicates.updated" }
   | TaskProgressEvent
   /** A backup replaced the library: refetch everything. */
   | { type: "library.restored" }

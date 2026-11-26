@@ -14,7 +14,7 @@ describe("parseMessage", () => {
     }
     const kinds = sample.flatMap((m) => ("events" in m && m.events ? m.events.map((e) => e.type) : [m.type]));
     expect(new Set(kinds)).toEqual(
-      new Set(["hello", "asset.updated", "job.updated", "scan.progress", "source.status", "tags.updated", "collections.updated", "task.progress", "library.restored", "ai.updated", "resync"]),
+      new Set(["hello", "asset.updated", "job.updated", "scan.progress", "source.status", "tags.updated", "collections.updated", "task.progress", "library.restored", "ai.updated", "duplicates.updated", "resync"]),
     );
   });
 
@@ -127,5 +127,12 @@ describe("LiveEvents", () => {
     vi.advanceTimersByTime(60_000);
     expect(FakeWS.all).toHaveLength(3);
     expect(states).toEqual(["connecting", "live", "reconnecting", "reconnecting", "reconnecting", "reconnecting", "live", "closed"]);
+  });
+});
+
+describe("duplicates (D2)", () => {
+  it("duplicates.updated refreshes the groups, the badge and the thresholds", () => {
+    const plan = planFor([{ type: "duplicates.updated" }]);
+    expect(plan.invalidate).toEqual([keys.assets.duplicates, keys.settings.duplicates]);
   });
 });

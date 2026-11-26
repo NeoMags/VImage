@@ -476,6 +476,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Groups */
+        get: operations["list_groups_v1_duplicates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/duplicates/{group_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss */
+        post: operations["dismiss_v1_duplicates__group_id__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/duplicates/{group_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve */
+        post: operations["resolve_v1_duplicates__group_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/duplicates:rescan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rescan */
+        post: operations["rescan_v1_duplicates_rescan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/duplicates:resolve-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve All */
+        post: operations["resolve_all_v1_duplicates_resolve_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/duplicates:summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Summary */
+        get: operations["summary_v1_duplicates_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/export": {
         parameters: {
             query?: never;
@@ -661,6 +763,24 @@ export interface paths {
         get: operations["get_backup_settings_v1_settings_backup_get"];
         /** Put Backup Settings */
         put: operations["put_backup_settings_v1_settings_backup_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/settings/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Settings */
+        get: operations["get_settings_v1_settings_duplicates_get"];
+        /** Put Settings */
+        put: operations["put_settings_v1_settings_duplicates_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1346,6 +1466,113 @@ export interface components {
             /** Width */
             width: number | null;
         };
+        /** DuplicateDismissed */
+        DuplicateDismissed: {
+            /** Pairs */
+            pairs: number;
+        };
+        /** DuplicateGroup */
+        DuplicateGroup: {
+            /** Id */
+            id: number;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "copies" | "similar";
+            /** Members */
+            members: components["schemas"]["DuplicateMember"][];
+        };
+        /** DuplicateGroups */
+        DuplicateGroups: {
+            /** Items */
+            items: components["schemas"]["DuplicateGroup"][];
+            /** Total */
+            total: number;
+        };
+        /** DuplicateMember */
+        DuplicateMember: {
+            /** Byte Size */
+            byte_size: number;
+            /** Date */
+            date: string | null;
+            /** Height */
+            height: number | null;
+            /** Id */
+            id: number;
+            /** Is Favorite */
+            is_favorite: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "screenshot" | "video" | "pdf" | "drawing" | "document" | "other";
+            /** Locations */
+            locations: number;
+            /** Mime Type */
+            mime_type: string;
+            /** Path */
+            path: string | null;
+            /** Similarity */
+            similarity: number;
+            /** Suggested Keep */
+            suggested_keep: boolean;
+            /** Thumb Path */
+            thumb_path: string | null;
+            /** Uid */
+            uid: string;
+            /** Width */
+            width: number | null;
+        };
+        /**
+         * DuplicateOptions
+         * @description Duplicate finder thresholds (D1). Changing them takes effect for new photos; "Scan again"
+         *     applies them to the whole library.
+         */
+        DuplicateOptions: {
+            /**
+             * Clip Min
+             * @default 0.95
+             */
+            clip_min: number;
+            /**
+             * Phash Max
+             * @default 8
+             */
+            phash_max: number;
+            /**
+             * Window Min
+             * @default 10
+             */
+            window_min: number;
+        };
+        /** DuplicateResolved */
+        DuplicateResolved: {
+            /** Hidden */
+            hidden: number[];
+            /** Kept */
+            kept: number[];
+        };
+        /** DuplicateSummary */
+        DuplicateSummary: {
+            /** Copies */
+            copies: number;
+            /** Multi Location */
+            multi_location: number;
+            /** Scan Error */
+            scan_error: string | null;
+            /** Scanning */
+            scanning: boolean;
+            /** Similar */
+            similar: number;
+        };
+        /** DuplicatesResolvedAll */
+        DuplicatesResolvedAll: {
+            /** Groups */
+            groups: number;
+            /** Hidden */
+            hidden: number;
+        };
         /** ExportBody */
         ExportBody: {
             /**
@@ -1697,6 +1924,19 @@ export interface components {
         Requeued: {
             /** Requeued */
             requeued: number;
+        };
+        /** ResolveAllBody */
+        ResolveAllBody: {
+            /**
+             * Tab
+             * @enum {string}
+             */
+            tab: "copies" | "similar";
+        };
+        /** ResolveBody */
+        ResolveBody: {
+            /** Keep */
+            keep?: number[] | null;
         };
         /**
          * Resources
@@ -2253,6 +2493,7 @@ export interface operations {
                 max_h?: number | null;
                 min_bytes?: number | null;
                 max_bytes?: number | null;
+                multi_location?: boolean | null;
             };
             header?: {
                 authorization?: string;
@@ -2785,6 +3026,7 @@ export interface operations {
                 max_h?: number | null;
                 min_bytes?: number | null;
                 max_bytes?: number | null;
+                multi_location?: boolean | null;
             };
             header?: {
                 authorization?: string;
@@ -2835,6 +3077,7 @@ export interface operations {
                 max_h?: number | null;
                 min_bytes?: number | null;
                 max_bytes?: number | null;
+                multi_location?: boolean | null;
             };
             header?: {
                 authorization?: string;
@@ -3193,6 +3436,208 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_groups_v1_duplicates_get: {
+        parameters: {
+            query?: {
+                tab?: "copies" | "similar";
+                offset?: number;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateGroups"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_v1_duplicates__group_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                group_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateDismissed"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_v1_duplicates__group_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                group_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ResolveBody"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateResolved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rescan_v1_duplicates_rescan_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_all_v1_duplicates_resolve_all_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveAllBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicatesResolvedAll"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summary_v1_duplicates_summary_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateSummary"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -3619,6 +4064,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BackupOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_settings_v1_settings_duplicates_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_settings_v1_settings_duplicates_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DuplicateOptions"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateOptions"];
                 };
             };
             /** @description Validation Error */

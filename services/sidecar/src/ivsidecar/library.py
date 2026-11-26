@@ -158,6 +158,7 @@ def _asset_filters(
     max_h: int | None = None,
     min_bytes: int | None = None,
     max_bytes: int | None = None,
+    multi_location: bool | None = None,
 ) -> tuple[list[str], list]:
     """WHERE clauses shared by the asset list and the month counts, so both always agree."""
     where, args = ["a.is_hidden = ?"], [int(hidden)]
@@ -192,6 +193,8 @@ def _asset_filters(
     if reviewed is not None:
         where.append("a.is_reviewed = ?")
         args.append(int(reviewed))
+    if multi_location is not None:  # D1: the same file in several folders
+        where.append(f"((SELECT count(*) FROM file_locations l WHERE l.asset_id = a.id) >= 2) = {int(multi_location)}")
     if availability:
         if availability not in ("present", "missing", "unreachable"):
             raise Invalid("availability must be present, missing or unreachable")
