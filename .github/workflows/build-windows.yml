@@ -97,6 +97,13 @@ jobs:
           "| Queue self-test (1 file, stages 1-4, spawned worker) | $($qr.ms) ms |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
           if (-not $qr.ok) { throw "job queue self-test failed in packaged build: $q" }
           if ($qr.observer -ne "WindowsApiObserver") { throw "folder watcher fell back to $($qr.observer) in packaged build" }
+          # OCR (K1): bundled models load and read synthetic screenshots in the packaged build
+          $ocrSummary = & dist/ivsidecar/ivsidecar.exe --ocr-bench synthetic --ocr-out ocr-bench.json
+          $ocr = Get-Content ocr-bench.json -Raw | ConvertFrom-Json
+          "| OCR (40 synthetic screenshots, CPU) | median $($ocr.ms_per_image.median) ms, $($ocr.images_per_s) img/s, CER $($ocr.cer_mean) |" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          $ocrSummary | Tee-Object -Append -FilePath health.json
+          if ($ocr.failed -gt 0 -or $ocr.images -lt 40) { throw "OCR failed on synthetic images in packaged build: $ocrSummary" }
+          if ($ocr.cer_mean -gt 0.03) { throw "OCR character error rate too high in packaged build: $ocrSummary" }
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -179,4 +186,5 @@ jobs:
           path: |
             apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
             services/sidecar/health.json
+            services/sidecar/ocr-bench.json
           if-no-files-found: warn

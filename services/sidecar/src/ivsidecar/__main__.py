@@ -52,7 +52,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--library", type=Path, default=Path(os.environ.get("IV_LIBRARY_DIR") or default_library_dir()))
     parser.add_argument("--port", type=int, default=0, help="0 = pick a free port")
     parser.add_argument("--selftest-queue", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--ocr-bench", metavar="DIR|synthetic", help="OCR speed/accuracy check (read-only), then exit")
+    parser.add_argument("--ocr-out", type=Path, help="write the --ocr-bench report (JSON) here")
+    parser.add_argument("--ocr-limit", type=int, default=200)
+    parser.add_argument("--ocr-threads", type=int, default=0, help="0 = ONNX Runtime default")
+    parser.add_argument("--ocr-dml", action="store_true", help="use DirectML (GPU) instead of CPU")
     args = parser.parse_args(argv)
+    if args.ocr_bench:
+        from . import ocrbench
+
+        report = ocrbench.run(args.ocr_bench, args.ocr_out, args.ocr_limit, args.ocr_threads, args.ocr_dml)
+        print(ocrbench.summary(report), flush=True)
+        return 0
     if args.selftest_queue:  # CI check of the packaged build; no token or library needed
         from watchdog.observers import Observer
 
