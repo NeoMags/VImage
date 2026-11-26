@@ -4,6 +4,8 @@ GET  /v1/ai            status: models installed, download progress, switch, how 
 POST /v1/ai:install    download the models (about 0.9 GB) in the background; switches AI on when done
 PUT  /v1/settings/ai   {enabled, max_tags}; switching on queues every photo, off drops queued AI jobs
 GET  /v1/ai/groups     "Sorted by AI": the most common AI tags, as virtual groups (T3)
+POST /v1/search        {text, limit}: photos that look like a description (T4)
+GET  /v1/assets/{id}/similar   photos that look like this one (T4)
 """
 
 from __future__ import annotations
@@ -12,7 +14,8 @@ import logging
 import sqlite3
 import threading
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import ai_models, handlers, settings
 from . import library as lib
@@ -21,6 +24,29 @@ from .events import bus
 from .jobqueue import JobQueue
 
 log = logging.getLogger("ivsidecar.ai")
+
+
+class SearchBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=1, max_length=300)
+    limit: int = Field(60, ge=1, le=200)
+
+
+class TextEncoder:
+    """The CLIP text model, loaded on the first search (about a second) and kept."""
+
+    def __init__(self, library_dir):
+        self.library_dir = library_dir
+        self.lock = threading.Lock()
+        self.model = None
+
+    def embed(self, text: str) -> bytes:
+        with self.lock:  # one search at a time; ONNX Runtime sessions are not shared across threads here
+            if self.model is None:
+                from .stages.ai import ClipText
+
+                self.model = ClipText(ai_models.models_dir(self.library_dir), threads=2)
+            return self.model.embed(text).astype("float32").tobytes()
 
 
 class Download:
@@ -108,6 +134,36 @@ def build_router(conn: sqlite3.Connection, db_lock: threading.RLock, queue: JobQ
     def ai_groups() -> list[S.FacetTag]:
         with db_lock:
             return lib.ai_groups(conn)
+
+    encoder = TextEncoder(library_dir)
+
+    def results(fn, *args) -> dict:
+        with db_lock:
+            try:
+                items = fn(conn, *args)
+            except lib.NotFound as e:
+                raise HTTPException(status_code=404, detail=str(e)) from e
+            return {"items": items, "photos_analysed": lib.analysed_count(conn)}
+
+    @r.post("/search")
+    def search(body: SearchBody) -> S.SearchResults:
+        """Photos that look like the description, best first (CLIP; works offline)."""
+        if not ai_models.installed(library_dir):
+            raise HTTPException(status_code=409, detail="download the AI models first")
+        vec = encoder.embed(body.text)  # outside the database lock
+        return results(lib.search_by_vector, vec, body.limit)
+
+    @r.get("/assets/{asset_id}/similar")
+    def similar(asset_id: int, limit: int = Query(60, ge=1, le=200)) -> S.SearchResults:
+        """Photos that look like this one, best first. 409 until this photo has been analysed."""
+        with db_lock:
+            try:
+                vec = lib.asset_vector(conn, asset_id)
+            except lib.NotFound as e:
+                raise HTTPException(status_code=404, detail=str(e)) from e
+        if vec is None:
+            raise HTTPException(status_code=409, detail="this photo has not been analysed yet")
+        return results(lib.search_by_vector, vec, limit, asset_id)
 
     @r.get("/settings/ai")
     def get_ai_settings() -> settings.AiOptions:

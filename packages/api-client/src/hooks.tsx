@@ -455,6 +455,29 @@ export function useAiGroups(enabled = true) {
   });
 }
 
+// ------------------------------------------------------------------ search (T4)
+/** Photos that look like a description (CLIP, on this PC). Empty text runs nothing. */
+export function useSearch(text: string, limit = 120) {
+  const api = useApi();
+  const q = text.trim();
+  return useQuery({
+    queryKey: keys.search.text(q, limit),
+    queryFn: () => unwrap(api.POST("/v1/search", { body: { text: q, limit } })),
+    enabled: q.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+/** Photos that look like this one. A 409 means it has not been analysed yet. */
+export function useSimilar(id: number, limit = 120) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.search.similar(id, limit),
+    queryFn: () => unwrap(api.GET("/v1/assets/{asset_id}/similar", { params: { path: { asset_id: id }, query: { limit } } })),
+    staleTime: 30_000,
+  });
+}
+
 export function useInstallAi() {
   const api = useApi();
   const qc = useQueryClient();

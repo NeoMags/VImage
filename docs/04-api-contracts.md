@@ -51,6 +51,8 @@ B8a status (2026-11-25): rows marked **Built** exist. B8b (same day): every erro
 | `GET /ai/groups` | T3 "Sorted by AI": the 24 most common AI tags on visible photos `{id, name, count}`; a group is the `tag` filter |
 | `GET /assets:facets` → `ai_tags` | T3: tags only the AI has suggested; `tags` holds yours (from you, a file, or an accepted AI tag). One section per tag; counts cover every origin |
 | `POST /assets:bulk` `confirm_ai_tags: true` | T3: accept every AI tag on the selected photos |
+| `POST /search` `{text, limit≤200}` | T4: photos that look like a description, best first, `{items: [summary + score], photos_analysed}`; 409 until the models are installed. Exact nearest neighbours over `vec_clip_b32` |
+| `GET /assets/{id}/similar?limit=` | T4: "More like this", same shape; never the photo itself or hidden photos; 409 until the photo has a vector |
 
 ### Phase D2–D3
 | Method & path | Purpose |

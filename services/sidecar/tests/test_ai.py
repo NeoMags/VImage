@@ -309,3 +309,82 @@ def test_ai_groups_route_and_bulk_accept_route(tmp_path):
             "object": 1,
             "blue thing": 1,
         }
+
+
+# --------------------------------------------------------------------------- T4: search and similar
+def _colour_vec(r, g, b):
+    import numpy as np
+
+    v = np.array([r, g, b] + [1.0] * 509, np.float32)
+    return (v / np.linalg.norm(v)).tobytes()
+
+
+def test_search_by_description_and_similar_photos(tmp_path, monkeypatch):
+    from ivsidecar import api_ai
+
+    lib, src, conn = _library(tmp_path)
+    settings.save(conn, "ai", settings.AiOptions(enabled=True))
+    _photos(src, ("red", "green", "blue", "darkred"))
+    _register_all(conn, src)
+    _run(lib, conn)
+    monkeypatch.setattr(ai_models, "installed", lambda d: True)
+    words = {"something red": (255, 0, 0), "the sea": (0, 0, 255)}
+    monkeypatch.setattr(api_ai.TextEncoder, "embed", lambda self, text: _colour_vec(*words[text]))
+    app = create_app(conn, TOKEN, time.time())
+    with TestClient(app) as c:
+        r = c.post("/v1/search", json={"text": "something red", "limit": 2}, headers=AUTH).json()
+        assert [h["file_name"] for h in r["items"]] == ["red.png", "darkred.png"]
+        assert r["photos_analysed"] == 4 and 0 < r["items"][1]["score"] < r["items"][0]["score"] <= 1
+        assert (
+            c.post("/v1/search", json={"text": "the sea", "limit": 1}, headers=AUTH).json()["items"][0]["file_name"]
+            == "blue.png"
+        )
+        # similar: never the photo itself; hidden photos never show
+        rid = _asset(conn, "red.png")
+        sim = c.get(f"/v1/assets/{rid}/similar", params={"limit": 3}, headers=AUTH).json()["items"]
+        assert sim[0]["file_name"] == "darkred.png" and rid not in [h["id"] for h in sim]
+        c.post(f"/v1/assets/{_asset(conn, 'darkred.png')}/hide", headers=AUTH)
+        sim = c.get(f"/v1/assets/{rid}/similar", headers=AUTH).json()["items"]
+        assert "darkred.png" not in [h["file_name"] for h in sim] and len(sim) == 2
+        assert c.get("/v1/assets/999/similar", headers=AUTH).status_code == 404
+        assert c.post("/v1/search", json={"text": ""}, headers=AUTH).status_code == 422
+
+
+def test_similar_waits_for_analysis_and_search_needs_models(tmp_path, monkeypatch):
+    monkeypatch.delenv("IV_MODELS_DIR", raising=False)  # CI has the real models there
+    lib, src, conn = _library(tmp_path)
+    _photos(src, ("red",))
+    _register_all(conn, src)
+    _run(lib, conn)  # AI off: no vectors
+    app = create_app(conn, TOKEN, time.time())
+    with TestClient(app) as c:
+        r = c.get(f"/v1/assets/{_asset(conn, 'red.png')}/similar", headers=AUTH)
+        assert r.status_code == 409 and "analysed" in r.json()["detail"]
+        assert c.post("/v1/search", json={"text": "cat"}, headers=AUTH).status_code == 409
+
+
+def test_clip_tokenizer_bpe(tmp_path):
+    """The built-in tokenizer on a tiny vocabulary (real ids are checked in test_ai_models.py)."""
+    import json
+
+    from ivsidecar.stages.clip_tokenizer import ClipTokenizer
+
+    vocab = {
+        "<|startoftext|>": 0,
+        "<|endoftext|>": 1,
+        "c": 2,
+        "a": 3,
+        "t": 4,
+        "t</w>": 5,
+        "ca": 6,
+        "cat</w>": 7,
+        "!</w>": 8,
+        "s</w>": 9,
+    }
+    merges = ["c a", "ca t</w>"]
+    p = tmp_path / "tokenizer.json"
+    p.write_text(json.dumps({"model": {"vocab": vocab, "merges": merges}}))
+    tok = ClipTokenizer(p)
+    assert tok.encode("  CAT!  ") == [0, 7, 8, 1]
+    assert tok.encode("cat <|endoftext|> cat") == [0, 7, 7, 1]  # typed special tokens are ignored
+    assert len(tok.encode("cat " * 200)) == 77 and tok.encode("cat " * 200)[-1] == 1

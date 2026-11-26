@@ -14,6 +14,7 @@ import type { AssetDetail as Detail } from "@imagevault/shared-types";
 import { Badge, Button, type Tone } from "@imagevault/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 
 import { EmptyState, ErrorView, errorText, LoadingRows } from "../components/States";
 import { ago, bytes } from "../format";
@@ -31,6 +32,7 @@ export interface DetailProps {
 
 export function AssetDetail({ id, full, onToggleFull, onClose, onStep }: DetailProps) {
   const asset = useAsset(id);
+  const navigate = useNavigate();
 
   // ←/→ step through photos, Enter toggles full window, Esc closes (not while typing).
   useEffect(() => {
@@ -59,6 +61,9 @@ export function AssetDetail({ id, full, onToggleFull, onClose, onStep }: DetailP
           →
         </Button>
         <span className="spacer" />
+        <Button size="sm" title="Photos that look like this one" onClick={() => navigate(`/similar/${id}`)}>
+          More like this
+        </Button>
         <Button size="sm" onClick={onToggleFull}>
           {full ? "Side panel" : "Full window"}
         </Button>

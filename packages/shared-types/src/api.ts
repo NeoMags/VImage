@@ -182,6 +182,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/assets/{asset_id}/similar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Similar
+         * @description Photos that look like this one, best first. 409 until this photo has been analysed.
+         */
+        get: operations["similar_v1_assets__asset_id__similar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assets/{asset_id}/tags": {
         parameters: {
             query?: never;
@@ -528,6 +548,26 @@ export interface paths {
         put?: never;
         /** Retry Job */
         post: operations["retry_job_v1_jobs__job_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search
+         * @description Photos that look like the description, best first (CLIP; works offline).
+         */
+        post: operations["search_v1_search_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1702,6 +1742,75 @@ export interface components {
             /** Scan Run Id */
             scan_run_id: number;
         };
+        /** SearchBody */
+        SearchBody: {
+            /**
+             * Limit
+             * @default 60
+             */
+            limit: number;
+            /** Text */
+            text: string;
+        };
+        /** SearchHit */
+        SearchHit: {
+            /**
+             * Availability
+             * @enum {string}
+             */
+            availability: "present" | "missing" | "unreachable";
+            /** Byte Size */
+            byte_size: number;
+            /** Date */
+            date: string | null;
+            /** Duration Ms */
+            duration_ms: number | null;
+            /** File Name */
+            file_name: string | null;
+            /** Height */
+            height: number | null;
+            /** Id */
+            id: number;
+            /** Indexed At */
+            indexed_at: string;
+            /** Is Favorite */
+            is_favorite: boolean;
+            /** Is Hidden */
+            is_hidden: boolean;
+            /** Is Reviewed */
+            is_reviewed: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "screenshot" | "video" | "pdf" | "drawing" | "document" | "other";
+            /** Mime Type */
+            mime_type: string;
+            /** Score */
+            score: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "processing" | "ready" | "failed" | "unsupported";
+            /** Taken At */
+            taken_at: string | null;
+            /** Thumb Path */
+            thumb_path: string | null;
+            /** Title */
+            title: string | null;
+            /** Uid */
+            uid: string;
+            /** Width */
+            width: number | null;
+        };
+        /** SearchResults */
+        SearchResults: {
+            /** Items */
+            items: components["schemas"]["SearchHit"][];
+            /** Photos Analysed */
+            photos_analysed: number;
+        };
         /** ShuttingDown */
         ShuttingDown: {
             /** Stopping */
@@ -2274,6 +2383,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RevealPath"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    similar_v1_assets__asset_id__similar_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResults"];
                 };
             };
             /** @description Validation Error */
@@ -3113,6 +3257,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobRetried"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_v1_search_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResults"];
                 };
             };
             /** @description Validation Error */

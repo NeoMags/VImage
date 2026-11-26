@@ -55,6 +55,17 @@ class AssetSummary(Out):
     """Name of the file in one of its locations (a present one first); null if it has none."""
 
 
+class SearchHit(AssetSummary):
+    score: float
+    """Cosine similarity, higher is closer. Only comparable within one search."""
+
+
+class SearchResults(Out):
+    items: list[SearchHit]
+    photos_analysed: int
+    """Photos with a search vector so far; the others cannot be found by description yet."""
+
+
 class AssetPage(Out):
     items: list[AssetSummary]
     next_cursor: str | None

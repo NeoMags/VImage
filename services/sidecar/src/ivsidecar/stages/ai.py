@@ -46,7 +46,7 @@ GENERIC_TAGS = frozenset(
 
 
 def _session(path: Path, threads: int):
-    import onnxruntime as ort  # heavy; only in worker processes that run AI jobs
+    import onnxruntime as ort  # heavy: loaded only where AI runs (workers, and the engine for search text)
 
     so = ort.SessionOptions()
     if threads > 0:
@@ -83,6 +83,27 @@ class ClipImage:
 
     def embed(self, img: Image.Image) -> np.ndarray:
         v = self.s.run([self.out], {"pixel_values": clip_pixels(img)})[0][0].astype(np.float32)
+        return v / np.linalg.norm(v)
+
+
+class ClipText:
+    """CLIP text side (T4): a description -> a vector in the same space as ClipImage's."""
+
+    def __init__(self, models: Path, threads: int = 0):
+        from .clip_tokenizer import ClipTokenizer
+
+        self.tok = ClipTokenizer(models / "clip" / "tokenizer.json")
+        self.s = _session(models / "clip" / "text_model_quantized.onnx", threads)
+        self.inputs = {i.name for i in self.s.get_inputs()}
+        names = [o.name for o in self.s.get_outputs()]
+        self.out = "text_embeds" if "text_embeds" in names else names[0]
+
+    def embed(self, text: str) -> np.ndarray:
+        ids = np.array([self.tok.encode(text)], np.int64)
+        feed = {"input_ids": ids}
+        if "attention_mask" in self.inputs:
+            feed["attention_mask"] = np.ones_like(ids)
+        v = self.s.run([self.out], feed)[0][0].astype(np.float32)
         return v / np.linalg.norm(v)
 
 
