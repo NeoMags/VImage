@@ -93,7 +93,14 @@ export function CollectionsNav() {
                 <span className="twisty" />
               )}
               <NavLink to={`/collections/${c.id}`}>
-                <span className="name">{c.name}</span>
+                <span className="name">
+                  {c.kind === "smart" ? (
+                    <span className="smart-icon" title="Smart collection: fills itself from its filters" aria-label="Smart collection">
+                      ✦{" "}
+                    </span>
+                  ) : null}
+                  {c.name}
+                </span>
                 <span className="muted small">{num(c.count)}</span>
               </NavLink>
             </div>

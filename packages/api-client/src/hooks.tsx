@@ -7,6 +7,7 @@ import type {
   BulkBody,
   Resources,
   ScanOptions,
+  SmartRule,
   TaskProgressEvent,
 } from "@imagevault/shared-types";
 import {
@@ -406,7 +407,8 @@ export function useCreateCollection() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name: string; parent_id?: number | null }) => unwrap(api.POST("/v1/collections", { body })),
+    mutationFn: (body: { name: string; parent_id?: number | null; rule?: SmartRule | null }) =>
+      unwrap(api.POST("/v1/collections", { body })),
     onSuccess: () => refresh(qc, keys.collections),
   });
 }
@@ -415,9 +417,10 @@ export function useUpdateCollection() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: number; name?: string; parent_id?: number | null }) =>
+    mutationFn: ({ id, ...body }: { id: number; name?: string; parent_id?: number | null; rule?: SmartRule | null }) =>
       unwrap(api.PATCH("/v1/collections/{coll_id}", { params: { path: { coll_id: id } }, body })),
-    onSuccess: () => refresh(qc, keys.collections),
+    // a new rule changes which photos a smart collection shows, so its photo lists refetch too
+    onSuccess: (_c, vars) => (vars.rule !== undefined ? refresh(qc, keys.collections, keys.assets.all) : refresh(qc, keys.collections)),
   });
 }
 
