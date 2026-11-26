@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import library as lib
 from . import schemas as S
 from .events import bus
+from .smart import SmartRule
 
 Ids = Annotated[list[int], Field(min_length=1, max_length=lib.MAX_BULK)]
 
@@ -58,6 +59,7 @@ def asset_filters(
     min_bytes: int | None = Query(None, ge=0),
     max_bytes: int | None = Query(None, ge=0),
     multi_location: bool | None = None,
+    recent_days: int | None = Query(None, ge=1, le=36500),
 ) -> dict:
     """The asset filters shared by GET /assets and GET /assets:months."""
     return {k: v for k, v in locals().items()}
@@ -91,11 +93,15 @@ class AssetTags(_Model):
 class CollectionBody(_Model):
     name: str = Field(min_length=1, max_length=200)
     parent_id: int | None = None
+    rule: SmartRule | None = None
+    """S1: given, the collection is a Smart Collection that shows every photo matching these filters."""
 
 
 class CollectionPatch(_Model):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     parent_id: int | None = None
+    rule: SmartRule | None = None
+    """S1: a smart collection's new filters."""
 
 
 class Position(_Model):
@@ -300,7 +306,7 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
 
     @r.post("/collections", status_code=201)
     def new_collection(body: CollectionBody) -> S.NewCollection:
-        return run(lib.create_collection, body.name, body.parent_id, write=True, notify="collections")
+        return run(lib.create_collection, body.name, body.parent_id, body.rule, write=True, notify="collections")
 
     @r.patch("/collections/{coll_id}")
     def edit_collection(coll_id: int, body: CollectionPatch) -> S.Collection:

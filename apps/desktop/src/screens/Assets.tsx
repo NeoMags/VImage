@@ -7,6 +7,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { CollectionActions } from "../collections/CollectionActions";
+import { SmartRuleBar } from "../collections/SmartCollections";
 import { CollectionPicker } from "../collections/CollectionPicker";
 import { pathOf } from "../collections/tree";
 import { AssetDetail } from "../detail/AssetDetail";
@@ -156,6 +157,7 @@ export function Assets({ collectionId }: { collectionId?: number } = {}) {
         </Button>
       </div>
       {coll ? <CollectionActions key={coll.id} coll={coll} /> : null}
+      {coll?.kind === "smart" ? <SmartRuleBar coll={coll} /> : null}
       {filtered ? <FilterChips skipCollection={collectionId != null} /> : null}
 
       <div className="assets-body">
@@ -590,6 +592,9 @@ function BulkBar({
   onClear: () => void;
 }) {
   const tags = useTags();
+  const collections = useCollections();
+  // a smart collection's photos come from its rule: there is nothing to remove by hand (S1)
+  const manual = collectionId != null && collections.data?.find((c) => c.id === collectionId)?.kind === "manual";
   const [tag, setTag] = useState("");
   const [busy, setBusy] = useState(false);
   const go = (change: Omit<BulkBody, "ids">, what: string) => {
@@ -630,7 +635,7 @@ function BulkBar({
         exclude={collectionId}
         onPick={(id, name) => go({ add_to_collection: id }, `Added to “${name}”`)}
       />
-      {collectionId != null ? (
+      {manual ? (
         <Button size="sm" disabled={busy} onClick={() => go({ remove_from_collection: collectionId }, "Removed from this collection")}>
           Remove from collection
         </Button>

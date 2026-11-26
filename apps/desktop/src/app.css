@@ -255,3 +255,12 @@ button.link:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
 .dup-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dup-actions { display: flex; align-items: center; gap: var(--iv-space-2); flex-wrap: wrap; }
 .dup-error { color: var(--iv-danger); }
+
+/* Smart Collections (S1) */
+.smart-save { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: var(--iv-space-2) 0; border-bottom: 1px solid var(--iv-border); }
+.smart-name { display: flex; gap: 6px; flex: 1; min-width: 0; }
+.smart-name .inline-input { flex: 1; min-width: 0; }
+.smart-rule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chip-static { padding-right: 10px; }
+.smart-icon { color: var(--iv-accent); }
+.segmented.recent { margin-bottom: 6px; }

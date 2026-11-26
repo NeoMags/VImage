@@ -34,6 +34,7 @@ const coll = (id: number, name: string, parent_id: number | null, count = 0) => 
   parent_id,
   kind: "manual" as const,
   count,
+  rule: null,
   created_at: "2026-11-25T10:00:00Z",
 });
 const TREE = [coll(1, "Trips", null), coll(2, "Italy", 1, 3), coll(3, "Rome", 2, 1), coll(4, "Cats", null, 2)];

@@ -1421,6 +1421,7 @@ export interface components {
             name: string;
             /** Parent Id */
             parent_id: number | null;
+            rule: components["schemas"]["SmartRule"] | null;
             /** Uid */
             uid: string;
         };
@@ -1430,6 +1431,7 @@ export interface components {
             name: string;
             /** Parent Id */
             parent_id?: number | null;
+            rule?: components["schemas"]["SmartRule"] | null;
         };
         /** CollectionPatch */
         CollectionPatch: {
@@ -1437,6 +1439,7 @@ export interface components {
             name?: string | null;
             /** Parent Id */
             parent_id?: number | null;
+            rule?: components["schemas"]["SmartRule"] | null;
         };
         /** CollectionRef */
         CollectionRef: {
@@ -2121,6 +2124,60 @@ export interface components {
             /** Min */
             min: number | null;
         };
+        /**
+         * SmartFilters
+         * @description The gallery filters a Smart Collection keeps (all must match; several tags must all match).
+         */
+        SmartFilters: {
+            /** Availability */
+            availability?: ("present" | "missing" | "unreachable") | null;
+            /** Collection */
+            collection?: number | null;
+            /** Favorite */
+            favorite?: boolean | null;
+            /** From */
+            from?: string | null;
+            /** Kind */
+            kind?: ("image" | "screenshot" | "video" | "pdf" | "drawing" | "document" | "other")[] | null;
+            /** Max Bytes */
+            max_bytes?: number | null;
+            /** Max H */
+            max_h?: number | null;
+            /** Max W */
+            max_w?: number | null;
+            /** Mime */
+            mime?: string[] | null;
+            /** Min Bytes */
+            min_bytes?: number | null;
+            /** Min H */
+            min_h?: number | null;
+            /** Min W */
+            min_w?: number | null;
+            /** Multi Location */
+            multi_location?: boolean | null;
+            /** Recent Days */
+            recent_days?: number | null;
+            /** Reviewed */
+            reviewed?: boolean | null;
+            /** Source */
+            source?: number | null;
+            /** Status */
+            status?: ("pending" | "processing" | "ready" | "failed" | "unsupported")[] | null;
+            /** Tag */
+            tag?: number[] | null;
+            /** To */
+            to?: string | null;
+        };
+        /** SmartRule */
+        SmartRule: {
+            filters: components["schemas"]["SmartFilters"];
+            /**
+             * V
+             * @default 1
+             * @constant
+             */
+            v: 1;
+        };
         /** Source */
         Source: {
             /** Display Name */
@@ -2494,6 +2551,7 @@ export interface operations {
                 min_bytes?: number | null;
                 max_bytes?: number | null;
                 multi_location?: boolean | null;
+                recent_days?: number | null;
             };
             header?: {
                 authorization?: string;
@@ -3027,6 +3085,7 @@ export interface operations {
                 min_bytes?: number | null;
                 max_bytes?: number | null;
                 multi_location?: boolean | null;
+                recent_days?: number | null;
             };
             header?: {
                 authorization?: string;
@@ -3078,6 +3137,7 @@ export interface operations {
                 min_bytes?: number | null;
                 max_bytes?: number | null;
                 multi_location?: boolean | null;
+                recent_days?: number | null;
             };
             header?: {
                 authorization?: string;

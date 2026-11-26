@@ -5,6 +5,7 @@ import type { AssetFacets, AssetFilter } from "@imagevault/shared-types";
 import { Button } from "@imagevault/ui";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import { SaveSmart } from "../collections/SmartCollections";
 import { collectionOptions } from "../collections/tree";
 import { ErrorView } from "../components/States";
 import { num } from "../format";
@@ -175,6 +176,7 @@ export function FilterPanel({
           ✕
         </Button>
       </div>
+      {!inCollection && activeCount(f) ? <SaveSmart filters={f} /> : null}
       {facets.isError ? (
         <ErrorView what="the filter counts" error={facets.error} onRetry={() => void facets.refetch()} />
       ) : null}
@@ -182,11 +184,23 @@ export function FilterPanel({
         <Section title="Kind" active={f.kind != null}>
           {listOf("kind", "kind", kindLabel)}
         </Section>
-        <Section title="Date" active={!!(f.from || f.to)}>
+        <Section title="Date" active={!!(f.from || f.to || f.recent_days)}>
+          <div className="segmented tri recent" role="group" aria-label="Recent">
+            {[7, 30, 365].map((n) => (
+              <button
+                key={n}
+                type="button"
+                aria-pressed={f.recent_days === n}
+                onClick={() => set({ recent_days: f.recent_days === n ? undefined : n, from: undefined, to: undefined })}
+              >
+                Last {n === 365 ? "year" : `${n} days`}
+              </button>
+            ))}
+          </div>
           <div className="range">
-            <input type="date" aria-label="From date" value={f.from ?? ""} min={d?.date.min ?? undefined} max={d?.date.max ?? undefined} onChange={(e) => set({ from: e.target.value || undefined })} />
+            <input type="date" aria-label="From date" value={f.from ?? ""} min={d?.date.min ?? undefined} max={d?.date.max ?? undefined} onChange={(e) => set({ from: e.target.value || undefined, recent_days: undefined })} />
             <span>–</span>
-            <input type="date" aria-label="To date" value={f.to ?? ""} min={d?.date.min ?? undefined} max={d?.date.max ?? undefined} onChange={(e) => set({ to: e.target.value || undefined })} />
+            <input type="date" aria-label="To date" value={f.to ?? ""} min={d?.date.min ?? undefined} max={d?.date.max ?? undefined} onChange={(e) => set({ to: e.target.value || undefined, recent_days: undefined })} />
           </div>
         </Section>
         <Section title="Format" active={f.mime != null}>

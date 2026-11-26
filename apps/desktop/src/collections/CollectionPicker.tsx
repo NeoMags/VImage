@@ -30,7 +30,8 @@ export function CollectionPicker({
 
   // Searching shows matches with their full path; otherwise the indented tree.
   const rows = useMemo(() => {
-    const opts = collectionOptions(all).filter(({ c }) => c.id !== exclude);
+    // smart collections fill themselves from their rule (S1)
+    const opts = collectionOptions(all).filter(({ c }) => c.id !== exclude && c.kind === "manual");
     if (!query) return opts.map(({ c, depth }) => ({ c, depth, text: c.name }));
     return opts
       .filter(({ c }) => c.name.toLocaleLowerCase().includes(query))

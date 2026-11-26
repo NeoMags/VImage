@@ -96,6 +96,9 @@ export function chipsFor(f: Filters, names: Names): Chip[] {
   for (const m of asList(f.mime)) {
     chips.push({ key: `mime:${m}`, label: formatLabel(m), remove: (x) => ({ ...x, mime: asList(x.mime).filter((v) => v !== m) }) });
   }
+  if (f.recent_days != null) {
+    chips.push({ key: "recent", label: `Last ${f.recent_days} days`, remove: (x) => without(x, "recent_days") });
+  }
   if (f.from || f.to) {
     const label = f.from && f.to ? `${f.from} – ${f.to}` : f.from ? `From ${f.from}` : `Until ${f.to}`;
     chips.push({ key: "date", label, remove: (x) => without(x, "from", "to") });

@@ -14,6 +14,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from .smart import SmartRule
+
 AssetKind = Literal["image", "screenshot", "video", "pdf", "drawing", "document", "other"]
 AssetStatus = Literal["pending", "processing", "ready", "failed", "unsupported"]
 Availability = Literal["present", "missing", "unreachable"]
@@ -314,7 +316,9 @@ class Collection(Out):
     parent_id: int | None
     kind: Literal["manual", "smart"]
     count: int
+    """A smart collection's count is worked out from its rule each time (S1)."""
     created_at: str
+    rule: SmartRule | None
 
 
 class NewCollection(Out):

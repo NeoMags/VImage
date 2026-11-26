@@ -23,7 +23,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from . import handlers
+from . import handlers, smart
 
 NOW = handlers.NOW
 MAX_BULK = 5000
@@ -159,6 +159,8 @@ def _asset_filters(
     min_bytes: int | None = None,
     max_bytes: int | None = None,
     multi_location: bool | None = None,
+    recent_days: int | None = None,
+    rule: dict | None = None,
 ) -> tuple[list[str], list]:
     """WHERE clauses shared by the asset list and the month counts, so both always agree."""
     where, args = ["a.is_hidden = ?"], [int(hidden)]
@@ -193,6 +195,13 @@ def _asset_filters(
     if reviewed is not None:
         where.append("a.is_reviewed = ?")
         args.append(int(reviewed))
+    if recent_days:  # S1: "last N days", relative to today
+        where.append("a.sort_date >= ?")
+        args.append((date.today() - timedelta(days=recent_days)).isoformat())
+    if rule is not None:  # S1: an opened smart collection's own filters, ANDed with the others
+        w, a = _asset_filters(**rule)
+        where += w[1:]  # its first clause is the hidden flag, already here
+        args += a[1:]
     if multi_location is not None:  # D1: the same file in several folders
         where.append(f"((SELECT count(*) FROM file_locations l WHERE l.asset_id = a.id) >= 2) = {int(multi_location)}")
     if availability:
@@ -216,6 +225,17 @@ def _asset_filters(
     return where, args
 
 
+def _resolve_smart(conn: sqlite3.Connection, filters: dict) -> tuple[dict, bool]:
+    """A smart collection in `collection` becomes its rule (S1). Returns (filters, was_smart)."""
+    cid = filters.get("collection")
+    if cid is None:
+        return filters, False
+    row = conn.execute("SELECT kind, rule FROM collections WHERE id = ?", (cid,)).fetchone()
+    if row is None or row[0] != "smart":
+        return filters, False
+    return {**filters, "collection": None, "rule": smart.to_filters(row[1])}, True
+
+
 def list_assets(
     conn: sqlite3.Connection,
     *,
@@ -231,6 +251,9 @@ def list_assets(
         raise Invalid("order must be asc or desc")
     if not 1 <= limit <= 500:
         raise Invalid("limit must be 1-500")
+    filters, is_smart = _resolve_smart(conn, filters)
+    if is_smart and sort == "position":  # a smart collection has no order of its own
+        sort = "date"
     collection = filters.get("collection")
     if sort == "position":  # the user's order inside a collection
         if collection is None:
@@ -262,6 +285,7 @@ def list_assets(
 def asset_months(conn: sqlite3.Connection, **filters) -> dict:
     """How many assets fall in each month of sort_date (newest first), for the timeline. Same filters as
     list_assets; a null month holds assets with no date at all."""
+    filters, _ = _resolve_smart(conn, filters)
     where, args = _asset_filters(**filters)
     rows = conn.execute(
         # assets_by_date (is_hidden, sort_date, id) covers this scan; left alone, the planner picks
@@ -284,17 +308,18 @@ _FACET_OWN = {
     "format": ("mime",),
     "status": ("status",),
     "source": ("source",),
-    "collection": ("collection",),
+    "collection": ("collection", "rule"),
     "favorite": ("favorite",),
     "reviewed": ("reviewed",),
     "availability": ("availability",),
-    "date": ("date_from", "date_to"),
+    "date": ("date_from", "date_to", "recent_days"),
     "size": ("min_bytes", "max_bytes"),
 }
 
 
 def asset_facets(conn: sqlite3.Connection, tag_q: str | None = None, **filters) -> dict:
     """Counts per filter option for the filter panel, with the same filters as list_assets."""
+    filters, _ = _resolve_smart(conn, filters)
 
     def where(facet: str | None = None) -> tuple[str, list]:
         own = _FACET_OWN.get(facet, ())
@@ -745,14 +770,32 @@ def _clean_collection_name(name: str) -> str:
 
 
 def list_collections(conn: sqlite3.Connection) -> list[dict]:
-    return [
-        {"id": i, "uid": u, "name": n, "parent_id": p, "kind": k, "count": c, "created_at": t}
-        for i, u, n, p, k, c, t in conn.execute(
-            "SELECT c.id, c.uid, c.name, c.parent_id, c.kind, "
-            "(SELECT count(*) FROM collection_assets x WHERE x.collection_id = c.id), c.created_at "
-            "FROM collections c ORDER BY c.parent_id IS NOT NULL, c.parent_id, c.name COLLATE NOCASE"
+    rows = conn.execute(
+        "SELECT c.id, c.uid, c.name, c.parent_id, c.kind, "
+        "(SELECT count(*) FROM collection_assets x WHERE x.collection_id = c.id), c.created_at, c.rule "
+        "FROM collections c ORDER BY c.parent_id IS NOT NULL, c.parent_id, c.name COLLATE NOCASE"
+    ).fetchall()
+    out = []
+    for i, u, n, p, k, c, t, rule in rows:
+        if k == "smart":  # S1: counted live, so it always matches what opening it shows
+            try:
+                where, args = _asset_filters(rule=smart.to_filters(rule))
+                c = conn.execute(f"SELECT count(*) FROM assets a WHERE {' AND '.join(where)}", args).fetchone()[0]
+            except ValueError:
+                c = 0
+        out.append(
+            {
+                "id": i,
+                "uid": u,
+                "name": n,
+                "parent_id": p,
+                "kind": k,
+                "count": c,
+                "created_at": t,
+                "rule": smart.load(rule),
+            }
         )
-    ]
+    return out
 
 
 def _check_parent(conn: sqlite3.Connection, coll_id: int | None, parent_id: int | None) -> None:
@@ -767,14 +810,25 @@ def _check_parent(conn: sqlite3.Connection, coll_id: int | None, parent_id: int 
         cur = conn.execute("SELECT parent_id FROM collections WHERE id = ?", (cur,)).fetchone()[0]
 
 
-def create_collection(conn: sqlite3.Connection, name: str, parent_id: int | None = None) -> dict:
+def _rule_json(conn: sqlite3.Connection, rule) -> str:
+    try:
+        return smart.check(conn, rule)
+    except ValueError as e:
+        raise Invalid(str(e)) from e
+
+
+def create_collection(
+    conn: sqlite3.Connection, name: str, parent_id: int | None = None, rule: smart.SmartRule | None = None
+) -> dict:
+    """A manual collection, or a Smart Collection when `rule` is given (S1)."""
     name = _clean_collection_name(name)
     _check_parent(conn, None, parent_id)
+    raw = None if rule is None else _rule_json(conn, rule)
     cid = conn.execute(
-        "INSERT INTO collections (uid, name, parent_id) VALUES (?, ?, ?) RETURNING id",
-        (str(uuid.uuid4()), name, parent_id),
+        "INSERT INTO collections (uid, name, parent_id, kind, rule) VALUES (?, ?, ?, ?, ?) RETURNING id",
+        (str(uuid.uuid4()), name, parent_id, "manual" if raw is None else "smart", raw),
     ).fetchone()[0]
-    audit(conn, "create", "collection", cid, None, {"name": name, "parent_id": parent_id})
+    audit(conn, "create", "collection", cid, None, {"name": name, "parent_id": parent_id, "rule": raw})
     return {"id": cid, "name": name, "parent_id": parent_id, "count": 0}
 
 
@@ -792,6 +846,14 @@ def update_collection(conn: sqlite3.Connection, coll_id: int, changes: dict) -> 
     if "parent_id" in changes:
         _check_parent(conn, coll_id, changes["parent_id"])
         conn.execute("UPDATE collections SET parent_id = ? WHERE id = ?", (changes["parent_id"], coll_id))
+    if changes.get("rule") is not None:  # S1: only a smart collection has a rule to change
+        if conn.execute("SELECT kind FROM collections WHERE id = ?", (coll_id,)).fetchone()[0] != "smart":
+            raise Conflict("only a smart collection has a rule")
+        raw = _rule_json(conn, changes["rule"])
+        if json.loads(raw)["filters"].get("collection") == coll_id:
+            raise Invalid("a smart collection cannot use itself")
+        conn.execute("UPDATE collections SET rule = ? WHERE id = ?", (raw, coll_id))
+        changes = {**changes, "rule": raw}
     audit(conn, "update", "collection", coll_id, before, changes)
 
 

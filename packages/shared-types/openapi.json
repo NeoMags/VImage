@@ -1498,6 +1498,16 @@
             ],
             "title": "Parent Id"
           },
+          "rule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SmartRule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "uid": {
             "title": "Uid",
             "type": "string"
@@ -1510,7 +1520,8 @@
           "parent_id",
           "kind",
           "count",
-          "created_at"
+          "created_at",
+          "rule"
         ],
         "title": "Collection",
         "type": "object"
@@ -1534,6 +1545,16 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SmartRule"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1568,6 +1589,16 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SmartRule"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "CollectionPatch",
@@ -3610,6 +3641,289 @@
         "title": "SizeBounds",
         "type": "object"
       },
+      "SmartFilters": {
+        "additionalProperties": false,
+        "description": "The gallery filters a Smart Collection keeps (all must match; several tags must all match).",
+        "properties": {
+          "availability": {
+            "anyOf": [
+              {
+                "enum": [
+                  "present",
+                  "missing",
+                  "unreachable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability"
+          },
+          "collection": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection"
+          },
+          "favorite": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Favorite"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "image",
+                    "screenshot",
+                    "video",
+                    "pdf",
+                    "drawing",
+                    "document",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "max_bytes": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Bytes"
+          },
+          "max_h": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max H"
+          },
+          "max_w": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max W"
+          },
+          "mime": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime"
+          },
+          "min_bytes": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Bytes"
+          },
+          "min_h": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min H"
+          },
+          "min_w": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min W"
+          },
+          "multi_location": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multi Location"
+          },
+          "recent_days": {
+            "anyOf": [
+              {
+                "maximum": 36500.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recent Days"
+          },
+          "reviewed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "pending",
+                    "processing",
+                    "ready",
+                    "failed",
+                    "unsupported"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          }
+        },
+        "title": "SmartFilters",
+        "type": "object"
+      },
+      "SmartRule": {
+        "additionalProperties": false,
+        "properties": {
+          "filters": {
+            "$ref": "#/components/schemas/SmartFilters"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filters"
+        ],
+        "title": "SmartRule",
+        "type": "object"
+      },
       "Source": {
         "additionalProperties": false,
         "properties": {
@@ -4719,6 +5033,24 @@
                 }
               ],
               "title": "Multi Location"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recent_days",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 36500,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Recent Days"
             }
           },
           {
@@ -5859,6 +6191,24 @@
             }
           },
           {
+            "in": "query",
+            "name": "recent_days",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 36500,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Recent Days"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -6220,6 +6570,24 @@
                 }
               ],
               "title": "Multi Location"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recent_days",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 36500,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Recent Days"
             }
           },
           {
