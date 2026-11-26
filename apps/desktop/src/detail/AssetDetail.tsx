@@ -247,13 +247,32 @@ function Yours({ a }: { a: Detail }) {
   const [editing, setEditing] = useState<{ id: number; body: string } | null>(null);
   const failed = Object.values(edits).find((m) => m.isError);
   const inColl = new Set(a.collections.map((c) => c.id));
+  // T3: AI tags you have not accepted are shown apart; accepting one moves it to your tags.
+  const suggested = a.tags.filter((t) => t.origin === "ai" && !t.confirmed);
+  const mine = a.tags.filter((t) => !(t.origin === "ai" && !t.confirmed));
   return (
     <Section title="Yours">
+      {suggested.length ? (
+        <div className="chips" aria-label="Suggested by AI">
+          <span className="muted small">Suggested by AI:</span>
+          {suggested.map((t) => (
+            <span key={t.id} className="chip chip-ai" title={t.confidence != null ? `Confidence ${Math.round(t.confidence * 100)}%` : undefined}>
+              {t.name}
+              <button type="button" aria-label={`Accept tag ${t.name}`} onClick={() => edits.addTags.mutate([t.name])}>
+                ✓
+              </button>
+              <button type="button" aria-label={`Remove tag ${t.name}`} onClick={() => edits.removeTag.mutate(t.id)}>
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
       <div className="chips" aria-label="Tags">
-        {a.tags.map((t) => (
+        {mine.map((t) => (
           <span key={t.id} className="chip">
             {t.name}
-            {t.origin !== "user" ? <OriginTag origin={t.origin} /> : null}
+            {t.origin === "source" ? <OriginTag origin={t.origin} /> : null}
             <button type="button" aria-label={`Remove tag ${t.name}`} onClick={() => edits.removeTag.mutate(t.id)}>
               ×
             </button>

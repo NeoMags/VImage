@@ -41,6 +41,7 @@ const facets = (over: Record<string, unknown> = {}) => ({
     { id: 1, name: "Beach", count: 12 },
     { id: 2, name: "Sunset", count: 4 },
   ],
+  ai_tags: [{ id: 9, name: "dog", count: 30 }],
   favorite: { yes: 7, no: 113 },
   reviewed: { yes: 0, no: 120 },
   date: { min: "2019-05-02", max: "2026-03-10" },
@@ -120,6 +121,17 @@ describe("Filters", () => {
     expect(within(screen.getByLabelText("Active filters")).getByText("≥ 2.5 MB")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     await waitFor(() => expect(screen.queryByText("No photos match these filters")).toBeNull());
+  });
+
+  it("lists AI-only tags in their own section, filtering like any tag", async () => {
+    const seen: URL[] = [];
+    renderWith(<Assets />, routes(seen));
+    fireEvent.click(await screen.findByRole("button", { name: "Filters" }));
+    const panel = await screen.findByRole("complementary", { name: "Filters" });
+    const ai = await within(panel).findByRole("list", { name: "AI tags" });
+    expect(within(within(panel).getByRole("list", { name: "Tags" })).queryByText("dog")).toBeNull();
+    fireEvent.click(within(ai).getByRole("checkbox", { name: /dog\s*30/ }));
+    await waitFor(() => expect(seen.some((u) => u.pathname.endsWith("months") && u.searchParams.get("tag") === "9")).toBe(true));
   });
 
   it("keeps filters while switching screens (in memory only)", async () => {

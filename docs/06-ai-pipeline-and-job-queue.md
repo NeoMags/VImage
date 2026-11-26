@@ -78,3 +78,5 @@ Licences verified from the wheel: RapidOCR Apache-2.0; PP-OCRv6 weights Apache-2
 ## 8. AI models (T2)
 
 Model files (about 886 MB) are downloaded once from Hugging Face at pinned revisions into `<library>/models/` (backups skip it). Each file's SHA-256 is checked before use; partial downloads resume; a mismatch is discarded. AI is off until the user downloads the models and switches it on in Settings → Automatic tags. Switching on queues every ready photo (`embed` + `classify`); switching off drops queued AI jobs only. Measured (T1, Linux CI, COCO 500): RAM++ F1 0.81 at ~2.2 s/photo on CPU, CLIP ~41 ms/photo.
+
+**T3 (review in the UI).** Photo details list AI tags apart ("Suggested by AI", ✓ accept / × remove; a removed one never returns). The filter panel has an "AI tags" section; the sidebar has "Sorted by AI" groups (virtual: the tag filter, nothing moved). Migration 0005 adds the partial index `asset_tags_mine`. Measured, 100k photos × 5 AI tags, Linux: facets 359 ms (B15 budget 300 ms was set without tags; guard 500 ms), Sorted by AI 187 ms.

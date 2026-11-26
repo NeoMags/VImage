@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ivsidecar import db, handlers
+from ivsidecar import library as lib
 from ivsidecar.app import create_app
 
 TOKEN = "t" * 32
@@ -505,6 +506,22 @@ def test_100k_list_and_detail_timings(api):
     # 265/368 ms for the same queries, so it gets a looser regression guard until B21 measures
     # Neo's own PC (see PR #16).
     assert max(facets_ms, facets_f_ms) < (600 if os.name == "nt" else 300)
+
+    # T3: with AI tags on every photo (5 each from 300, the 8-tag default trimmed for CI time),
+    # the facets still fit the budget, and "Sorted by AI" is fast.
+    names = [f"ai tag {i}" for i in range(300)]
+    with lib.tx(conn):
+        tag_ids = lib.get_or_create_tags(conn, names)
+        conn.executemany(
+            "INSERT INTO asset_tags (asset_id, tag_id, origin, confidence) VALUES (?, ?, 'ai', 0.5)",
+            ((a, tag_ids[(a * 7 + k * 31) % 300]) for a in range(1, n + 1) for k in range(5)),
+        )
+    conn.execute("ANALYZE")
+    ai_ms, f = timed(lambda: _get(client, "/v1/assets:facets"), reps=3)
+    groups_ms, g = timed(lambda: _get(client, "/v1/ai/groups"), reps=3)
+    print(f"with AI tags: facets {ai_ms:.1f} ms, Sorted by AI {groups_ms:.1f} ms")
+    assert f["ai_tags"] and not f["tags"] and len(g) == 24
+    assert ai_ms < (1000 if os.name == "nt" else 500) and groups_ms < 500  # measured 359 / 187 ms on Linux
 
 
 def test_cursor_is_opaque_but_tamper_safe(api):

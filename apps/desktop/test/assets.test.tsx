@@ -205,4 +205,42 @@ describe("Photo details", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Next photo" }));
     expect(await within(panel).findByText("This photo is no longer in the library")).toBeTruthy();
   });
+
+  it("shows AI tags apart from yours; accepting moves one over, removing drops it", async () => {
+    let tags = [
+      { id: 7, name: "beach", origin: "user", confidence: null, confirmed: true },
+      { id: 9, name: "dog", origin: "ai", confidence: 0.91, confirmed: false },
+      { id: 10, name: "sand", origin: "ai", confidence: 0.7, confirmed: false },
+    ];
+    const { calls } = renderWith(<Assets />, {
+      "GET /v1/assets:months": months,
+      "GET /v1/assets": list,
+      "GET /v1/assets/1": () => detail(1, { tags }),
+      "POST /v1/assets/1/preview": () => problem(422, "decode_failed", "cannot decode"),
+      "GET /v1/tags": () => [],
+      "GET /v1/collections": () => [],
+      "POST /v1/assets/1/tags": () => {
+        tags = tags.map((t) => (t.id === 9 ? { ...t, confirmed: true } : t));
+        return { tags };
+      },
+      "DELETE /v1/assets/1/tags/10": () => {
+        tags = tags.filter((t) => t.id !== 10);
+        return new Response(null, { status: 204 });
+      },
+    });
+    const grid = await screen.findByRole("grid", { name: "Photos" });
+    fireEvent.doubleClick(await within(grid).findByRole("gridcell", { name: "IMG_1.jpg" }));
+    const panel = await screen.findByRole("complementary", { name: "Photo details" });
+    const ai = await within(panel).findByLabelText("Suggested by AI");
+    expect(within(ai).getByText("dog")).toBeTruthy();
+    expect(within(within(panel).getByLabelText("Tags")).queryByText("dog")).toBeNull();
+
+    fireEvent.click(within(ai).getByRole("button", { name: "Accept tag dog" }));
+    await waitFor(() => expect(within(within(panel).getByLabelText("Tags")).getByText("dog")).toBeTruthy());
+    const accept = calls.find((r) => r.method === "POST" && r.url.endsWith("/tags"))!;
+    expect(await accept.json()).toEqual({ names: ["dog"] });
+
+    fireEvent.click(within(within(panel).getByLabelText("Suggested by AI")).getByRole("button", { name: "Remove tag sand" }));
+    await waitFor(() => expect(within(panel).queryByLabelText("Suggested by AI")).toBeNull());
+  });
 });

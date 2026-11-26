@@ -394,6 +394,13 @@
       "AssetFacets": {
         "additionalProperties": false,
         "properties": {
+          "ai_tags": {
+            "items": {
+              "$ref": "#/components/schemas/FacetTag"
+            },
+            "title": "Ai Tags",
+            "type": "array"
+          },
           "availability": {
             "items": {
               "$ref": "#/components/schemas/FacetValue"
@@ -469,6 +476,7 @@
           "source",
           "collection",
           "tags",
+          "ai_tags",
           "favorite",
           "reviewed",
           "date",
@@ -1264,6 +1272,17 @@
             ],
             "title": "Add To Collection"
           },
+          "confirm_ai_tags": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm Ai Tags"
+          },
           "hide": {
             "anyOf": [
               {
@@ -1352,6 +1371,17 @@
               }
             ],
             "title": "Added To Collection"
+          },
+          "ai_tags_confirmed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Tags Confirmed"
           },
           "hidden_changed": {
             "anyOf": [
@@ -3391,6 +3421,50 @@
           }
         },
         "summary": "Get Ai"
+      }
+    },
+    "/v1/ai/groups": {
+      "get": {
+        "operationId": "ai_groups_v1_ai_groups_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FacetTag"
+                  },
+                  "title": "Response Ai Groups V1 Ai Groups Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ai Groups"
       }
     },
     "/v1/ai:install": {

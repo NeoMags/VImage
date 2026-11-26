@@ -133,7 +133,7 @@ export function FilterPanel({
   const tagRows = useMemo(() => {
     const rows = [...(d?.tags ?? [])];
     for (const id of selectedTags) {
-      if (!rows.some((r) => r.id === id)) rows.unshift({ id, name: tagName.get(id) ?? `#${id}`, count: d?.total ?? 0 });
+      if (!rows.some((r) => r.id === id) && !d?.ai_tags.some((r) => r.id === id)) rows.unshift({ id, name: tagName.get(id) ?? `#${id}`, count: d?.total ?? 0 });
     }
     return rows;
   }, [d, selectedTags, tagName]);
@@ -235,22 +235,23 @@ export function FilterPanel({
             onChange={(e) => setTagQ(e.target.value)}
           />
           {tagRows.length ? (
-            <ul className="filter-list">
-              {tagRows.map((t) => (
-                <li key={t.id}>
-                  <label className="check">
-                    <input type="checkbox" checked={selectedTags.includes(t.id)} onChange={() => set({ tag: toggle(selectedTags, t.id) })} />
-                    {t.name}
-                    <Count n={t.count} />
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <TagList rows={tagRows} selected={selectedTags} onToggle={(id) => set({ tag: toggle(selectedTags, id) })} />
           ) : (
             <p className="muted small">{debouncedQ ? "No tags match." : "No tags on these photos."}</p>
           )}
           {selectedTags.length > 1 ? <p className="muted small">Photos must have all ticked tags.</p> : null}
         </Section>
+        {d?.ai_tags.length ? (
+          <Section title="AI tags" active={d.ai_tags.some((t) => selectedTags.includes(t.id))}>
+            <p className="muted small">Suggested by AI, not yet accepted.</p>
+            <TagList
+              label="AI tags"
+              rows={d.ai_tags}
+              selected={selectedTags}
+              onToggle={(id) => set({ tag: toggle(selectedTags, id) })}
+            />
+          </Section>
+        ) : null}
         {inCollection ? null : (
           <Section title="Collection" active={f.collection != null}>
             <select aria-label="Collection" value={f.collection ?? ""} onChange={(e) => set({ collection: e.target.value ? Number(e.target.value) : undefined })}>
@@ -308,5 +309,31 @@ export function FilterPanel({
         </Section>
       </div>
     </aside>
+  );
+}
+
+function TagList({
+  rows,
+  selected,
+  onToggle,
+  label = "Tags",
+}: {
+  rows: { id: number; name: string; count: number }[];
+  selected: number[];
+  onToggle: (id: number) => void;
+  label?: string;
+}) {
+  return (
+    <ul className="filter-list" aria-label={label}>
+      {rows.map((t) => (
+        <li key={t.id}>
+          <label className="check">
+            <input type="checkbox" checked={selected.includes(t.id)} onChange={() => onToggle(t.id)} />
+            {t.name}
+            <Count n={t.count} />
+          </label>
+        </li>
+      ))}
+    </ul>
   );
 }

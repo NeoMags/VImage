@@ -106,6 +106,9 @@ class AssetFacets(Out):
     source: list[FacetId]
     collection: list[FacetId]
     tags: list[FacetTag]
+    """Tags you added, from files, or AI tags you accepted on at least one photo."""
+    ai_tags: list[FacetTag]
+    """Tags only the AI has suggested so far (T3)."""
     favorite: YesNo
     reviewed: YesNo
     date: DateBounds
@@ -231,6 +234,7 @@ class BulkResult(Out):
     photos: int
     tags_added: int | None = None
     tags_removed: int | None = None
+    ai_tags_confirmed: int | None = None
     added_to_collection: int | None = None
     removed_from_collection: int | None = None
     set_favorite: int | None = None
