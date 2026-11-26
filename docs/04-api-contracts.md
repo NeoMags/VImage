@@ -42,6 +42,13 @@ B8a status (2026-11-25): rows marked **Built** exist. B8b (same day): every erro
 | `POST /export` | **Built (B19).** `{format: json|csv, path, include_hidden}` → `{path, photos, bytes, format}`. JSON: everything per photo with origins (AI output labelled); CSV: one row per photo, UTF-8 with BOM, AI tags marked "(AI)". Streamed 1,000 photos at a time from a read-only snapshot; written to a temp file then renamed; `.json`/`.csv` added if missing. 422 for a relative path, a missing folder or a folder inside a source. Progress as `task.progress` events |
 | `WS /events` | **Built.** Auth: subprotocols `["ivsidecar", "bearer.<token>"]` (browsers cannot set headers on a WebSocket); Origin must be a Tauri origin when present; otherwise the handshake is refused (1008/403). First message `{type: "hello", flush_ms: 250}`, then at most one `{type: "batch", events: [...]}` per 250 ms: `asset.updated {ids}` (or `{all: true}`), `job.updated {count}`, `scan.progress {source_id, run_id, kind, status, files_*}`, `source.status {source_id, status}`, `tags.updated`, `collections.updated`, `task.progress {task, done, total}` (B19 export), `library.restored` (refetch everything), `resync` (window fell behind). Events are hints: refetch what is shown; after a reconnect refetch everything. A 10k-file scan sent 3 messages in the CI container |
 
+### Automatic tags (T2, built)
+| Method & path | Purpose |
+|---|---|
+| `GET /ai` | models installed, download progress, on/off, photos tagged/waiting/failed |
+| `POST /ai:install` | download the models in the background (202); switches AI on when done; event `ai.updated`, task progress `ai_models` |
+| `GET/PUT /settings/ai` | `{enabled, max_tags 1–20}`; 409 when enabling before the models are installed |
+
 ### Phase D2–D3
 | Method & path | Purpose |
 |---|---|

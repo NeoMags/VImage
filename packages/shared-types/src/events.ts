@@ -24,6 +24,7 @@ export type LiveEvent =
   | { type: "source.status"; source_id: number; status: "active" | "paused" | "unreachable" | "removed" }
   | { type: "tags.updated" }
   | { type: "collections.updated" }
+  | { type: "ai.updated" }
   | TaskProgressEvent
   /** A backup replaced the library: refetch everything. */
   | { type: "library.restored" }

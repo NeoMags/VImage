@@ -35,6 +35,8 @@ export type BackupMade = S["BackupMade"];
 export type BackupOptions = S["BackupOptions"];
 export type Restored = S["Restored"];
 export type Exported = S["Exported"];
+export type AiStatus = S["AiStatus"];
+export type AiOptions = S["AiOptions"];
 
 export type AssetKind = AssetSummary["kind"];
 export type AssetStatus = AssetSummary["status"];

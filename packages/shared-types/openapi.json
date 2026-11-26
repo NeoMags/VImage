@@ -15,6 +15,116 @@
         "title": "Added",
         "type": "object"
       },
+      "AiDownload": {
+        "additionalProperties": false,
+        "properties": {
+          "done_bytes": {
+            "title": "Done Bytes",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "state": {
+            "enum": [
+              "idle",
+              "downloading",
+              "failed",
+              "done"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "total_bytes": {
+            "title": "Total Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "done_bytes",
+          "total_bytes",
+          "error"
+        ],
+        "title": "AiDownload",
+        "type": "object"
+      },
+      "AiOptions": {
+        "additionalProperties": false,
+        "description": "Automatic tags and search (T2). `enabled` turns on only once the models are installed.",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "max_tags": {
+            "default": 8,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Tags",
+            "type": "integer"
+          }
+        },
+        "title": "AiOptions",
+        "type": "object"
+      },
+      "AiStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "download": {
+            "$ref": "#/components/schemas/AiDownload"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "installed": {
+            "title": "Installed",
+            "type": "boolean"
+          },
+          "max_tags": {
+            "title": "Max Tags",
+            "type": "integer"
+          },
+          "photos_done": {
+            "title": "Photos Done",
+            "type": "integer"
+          },
+          "photos_failed": {
+            "title": "Photos Failed",
+            "type": "integer"
+          },
+          "photos_waiting": {
+            "title": "Photos Waiting",
+            "type": "integer"
+          },
+          "photos_with_ai_tags": {
+            "title": "Photos With Ai Tags",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "installed",
+          "enabled",
+          "max_tags",
+          "download",
+          "photos_done",
+          "photos_waiting",
+          "photos_failed",
+          "photos_with_ai_tags"
+        ],
+        "title": "AiStatus",
+        "type": "object"
+      },
       "AssetDetail": {
         "additionalProperties": false,
         "properties": {
@@ -3243,6 +3353,86 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/ai": {
+      "get": {
+        "operationId": "get_ai_v1_ai_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ai"
+      }
+    },
+    "/v1/ai:install": {
+      "post": {
+        "operationId": "install_v1_ai_install_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Install"
+      }
+    },
     "/v1/assets": {
       "get": {
         "operationId": "list_assets_v1_assets_get",
@@ -5954,6 +6144,94 @@
           }
         },
         "summary": "Retry Job"
+      }
+    },
+    "/v1/settings/ai": {
+      "get": {
+        "operationId": "get_ai_settings_v1_settings_ai_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ai Settings"
+      },
+      "put": {
+        "operationId": "put_ai_settings_v1_settings_ai_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Ai Settings"
       }
     },
     "/v1/settings/backup": {

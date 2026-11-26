@@ -8,10 +8,10 @@
 | 3 | hash | D1 | SHA-256 streamed in 1 MB chunks | `sha256` (asset identity) |
 | 4 | thumbnail | D1 | pyvips shrink-on-load + auto-rotate → sRGB; HEIC/AVIF/BMP via Pillow + pillow-heif (libvips' libheif has no HEVC, verified 2026-11-25); RAW via embedded JPEG preview (ExifTool) | WebP `thumb_512` + `thumb_256`; pHash (DCT on 32×32 grey of the oriented image) → `vec_phash`; `preview_1600` on demand later |
 | 5 | ocr | D2 | RapidOCR 3.10 (PaddleOCR PP-OCRv6 small det/rec, ONNX Runtime, models bundled); Tesseract only if needed | `extracted_text`, `text_regions` |
-| 6 | classify | D2–D3 | rules first (screenshot dims, no EXIF camera, UI-text density), then CLIP zero-shot vs taxonomy prompts | `asset_categories` (ai, confidence) |
+| 6 | classify | T2 (built) | RAM++ int8 ONNX (AX1Y2JP, Apache-2.0) on the 512 px thumbnail, 384 px input, per-tag thresholds, generic tags dropped, up to `max_tags` (default 8). Slot 0 only, priority thumbnail+50. Rules-based categories (screenshot etc.) stay planned for D2–D3 | `asset_tags` (origin ai, confidence); user-rejected or confirmed tags are never overwritten |
 | 7 | entities | D2 | regex + validators (`phonenumbers`, URL/email parsers, date parser), code/command/error heuristics | `entities` linked to `text_regions` |
 | 8 | knowledge | D2 | template card from OCR + entities + category (no LLM needed) | `knowledge_cards` |
-| 9 | embed | D3 | OpenCLIP ViT-B-32 `laion2b_s34b_b79k` exported to ONNX (512-d) | `embeddings` + `vec_clip_b32` |
+| 9 | embed | T2 (built) | OpenAI CLIP ViT-B/32 quantized ONNX (Xenova @6b7c523, MIT), 224 px centre crop, L2-normalised 512-d; registered as the active image model in `embedding_models` (replaces the planned OpenCLIP laion2b model, T1 decision) | `embeddings` + `vec_clip_b32` |
 | 10 | duplicates | D3 | sha256 (exact) → pHash Hamming ≤ 6 **[proposed]** → CLIP cosine ≥ 0.95 **[proposed]** | `duplicate_groups` |
 | 11 | describe | D5, optional | Ollama vision model on localhost (user installs Ollama) | `descriptions`, richer cards |
 | 12 | faces | D6, opt-in | detector + embedder (licence note Q4) | `regions`, `asset_faces` |
@@ -73,3 +73,8 @@ All engines are free/open source; compute is your PC. No per-image charges. Lice
 | Windows CI runner (packaged exe) | same | see the build summary | see the build summary |
 | Neo's PC, real screenshots | — | not yet measured | not yet measured |
 Licences verified from the wheel: RapidOCR Apache-2.0; PP-OCRv6 weights Apache-2.0 (MODEL_LICENSES.md).
+
+
+## 8. AI models (T2)
+
+Model files (about 886 MB) are downloaded once from Hugging Face at pinned revisions into `<library>/models/` (backups skip it). Each file's SHA-256 is checked before use; partial downloads resume; a mismatch is discarded. AI is off until the user downloads the models and switches it on in Settings → Automatic tags. Switching on queues every ready photo (`embed` + `classify`); switching off drops queued AI jobs only. Measured (T1, Linux CI, COCO 500): RAM++ F1 0.81 at ~2.2 s/photo on CPU, CLIP ~41 ms/photo.

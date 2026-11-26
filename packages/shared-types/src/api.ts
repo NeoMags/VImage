@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/v1/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ai */
+        get: operations["get_ai_v1_ai_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai:install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install */
+        post: operations["install_v1_ai_install_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assets": {
         parameters: {
             query?: never;
@@ -483,6 +517,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/settings/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ai Settings */
+        get: operations["get_ai_settings_v1_settings_ai_get"];
+        /** Put Ai Settings */
+        put: operations["put_ai_settings_v1_settings_ai_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/settings/backup": {
         parameters: {
             query?: never;
@@ -725,6 +777,54 @@ export interface components {
         Added: {
             /** Added */
             added: number;
+        };
+        /** AiDownload */
+        AiDownload: {
+            /** Done Bytes */
+            done_bytes: number;
+            /** Error */
+            error: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "idle" | "downloading" | "failed" | "done";
+            /** Total Bytes */
+            total_bytes: number;
+        };
+        /**
+         * AiOptions
+         * @description Automatic tags and search (T2). `enabled` turns on only once the models are installed.
+         */
+        AiOptions: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Max Tags
+             * @default 8
+             */
+            max_tags: number;
+        };
+        /** AiStatus */
+        AiStatus: {
+            download: components["schemas"]["AiDownload"];
+            /** Enabled */
+            enabled: boolean;
+            /** Installed */
+            installed: boolean;
+            /** Max Tags */
+            max_tags: number;
+            /** Photos Done */
+            photos_done: number;
+            /** Photos Failed */
+            photos_failed: number;
+            /** Photos Waiting */
+            photos_waiting: number;
+            /** Photos With Ai Tags */
+            photos_with_ai_tags: number;
         };
         /** AssetDetail */
         AssetDetail: {
@@ -1708,6 +1808,68 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_ai_v1_ai_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    install_v1_ai_install_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_assets_v1_assets_get: {
         parameters: {
             query?: {
@@ -2897,6 +3059,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobRetried"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ai_settings_v1_settings_ai_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_ai_settings_v1_settings_ai_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiOptions"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiOptions"];
                 };
             };
             /** @description Validation Error */

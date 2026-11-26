@@ -493,3 +493,22 @@ class Exported(Out):
     photos: int
     bytes: int
     format: Literal["json", "csv"]
+
+
+# --------------------------------------------------------------------------- AI (T2)
+class AiDownload(Out):
+    state: Literal["idle", "downloading", "failed", "done"]
+    done_bytes: int
+    total_bytes: int
+    error: str | None
+
+
+class AiStatus(Out):
+    installed: bool
+    enabled: bool
+    max_tags: int
+    download: AiDownload
+    photos_done: int
+    photos_waiting: int
+    photos_failed: int
+    photos_with_ai_tags: int

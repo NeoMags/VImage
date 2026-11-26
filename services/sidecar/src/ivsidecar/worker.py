@@ -28,6 +28,16 @@ class WorkerContext:
     def __init__(self, library_dir: Path):
         self.library_dir = library_dir
         self._exiftool = None
+        self._ai: dict[str, object] = {}  # loaded AI models, kept for the worker's lifetime
+
+    def ai_model(self, kind: str, models_dir: str, threads: int):
+        """CLIP or RAM++, loaded on first use in this process (about a second each)."""
+        if kind not in self._ai:
+            from .stages.ai import ClipImage, RamTagger
+
+            cls = ClipImage if kind == "embed" else RamTagger
+            self._ai[kind] = cls(Path(models_dir), threads)
+        return self._ai[kind]
 
     @property
     def exiftool(self):
@@ -43,7 +53,7 @@ class WorkerContext:
 
 
 def run_stage(stage: str, payload: dict, ctx: WorkerContext) -> dict | None:
-    """Stages 1-4 as pure functions of a file. Paths come from the engine; files are only read."""
+    """Stages as pure functions of a file. Paths come from the engine; files are only read."""
     from .stages.exiftool import ExifToolError
     from .stages.hashing import sha256_file
     from .stages.identify import identify
@@ -76,6 +86,14 @@ def run_stage(stage: str, payload: dict, ctx: WorkerContext) -> dict | None:
             **kwargs,
         )
         return None if res is None else dataclasses.asdict(res)
+    if stage in ("embed", "classify"):  # T2: from the 512 px thumbnail, never the original
+        from .stages.ai import load_rgb
+
+        img = load_rgb(path)
+        model = ctx.ai_model(stage, payload["models"], payload.get("threads", 0))
+        if stage == "embed":
+            return {"vector": model.embed(img).tolist()}
+        return {"tags": model.tag(img, payload.get("max_tags", 8))}
     raise StageError("unknown_stage", stage)
 
 

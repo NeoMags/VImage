@@ -28,7 +28,9 @@ export const keys = {
     resources: ["settings", "resources"] as const,
     scan: ["settings", "scan"] as const,
     backup: ["settings", "backup"] as const,
+    ai: ["settings", "ai"] as const,
   },
+  ai: ["ai"] as const,
   backups: ["backups"] as const,
   /** Progress of a long request, written by live events (never fetched). */
   task: (name: string) => ["task", name] as const,

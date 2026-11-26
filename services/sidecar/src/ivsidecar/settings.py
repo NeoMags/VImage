@@ -56,7 +56,17 @@ class BackupOptions(BaseModel):
     copy_to: str | None = Field(default=None, min_length=1, max_length=4096)
 
 
+class AiOptions(BaseModel):
+    """Automatic tags and search (T2). `enabled` turns on only once the models are installed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    max_tags: int = Field(default=8, ge=1, le=20)
+
+
 GROUPS: dict[str, type[BaseModel]] = {
+    "ai": AiOptions,
     "resources": Resources,
     "queue": QueueState,
     "scan": ScanOptions,

@@ -11,11 +11,15 @@ existing asset = exact duplicate, no further work -> metadata (asset) -> thumbna
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import uuid
 from pathlib import Path
 
 from .stages import PIPELINE_VERSION
+
+AI_STAGES = ("embed", "classify")
+AI_PRIORITY_OFFSET = 50  # after stages 1-4 of the same priority: photos appear first, tags follow
 
 LOCATION_STAGES = ("identify", "hash")
 NOW = "strftime('%Y-%m-%dT%H:%M:%fZ','now')"
@@ -108,9 +112,13 @@ def _asset_path(conn: sqlite3.Connection, asset_id: int) -> Path:
     return Path(row[0]) / row[1]
 
 
-def build_payload(conn: sqlite3.Connection, job: sqlite3.Row, max_pixels: int | None = None) -> dict:
+def build_payload(
+    conn: sqlite3.Connection, job: sqlite3.Row, max_pixels: int | None = None, library_dir: Path | None = None
+) -> dict:
     if job["location_id"] is not None:
         return {"path": str(_location_path(conn, job["location_id"]))}
+    if job["stage"] in AI_STAGES:
+        return _ai_payload(conn, job, library_dir)
     payload = {"path": str(_asset_path(conn, job["asset_id"]))}
     if job["stage"] == "thumbnail":
         uid = conn.execute("SELECT uid FROM assets WHERE id = ?", (job["asset_id"],)).fetchone()[0]
@@ -174,6 +182,14 @@ def apply_result(conn: sqlite3.Connection, job: sqlite3.Row, data: dict | None) 
         return "succeeded", _apply_metadata(conn, job, data)
     if stage == "thumbnail":
         _apply_thumbnail(conn, job, data)
+        if data is not None and ai_enabled(conn):
+            enqueue_ai(conn, job["asset_id"], prio + AI_PRIORITY_OFFSET)
+        return "succeeded", None
+    if stage == "embed":
+        _apply_embedding(conn, job["asset_id"], data["vector"])
+        return "succeeded", None
+    if stage == "classify":  # RAM++ tags (doc 06 stage 6)
+        apply_ai_tags(conn, job["asset_id"], data["tags"])
         return "succeeded", None
     raise ValueError(f"no result handler for stage {stage}")
 
@@ -307,3 +323,103 @@ def stats(conn: sqlite3.Connection) -> dict:
         totals[status] = totals.get(status, 0) + n
     assets = dict(conn.execute("SELECT status, count(*) FROM assets GROUP BY status").fetchall())
     return {"jobs": totals, "by_stage": by_stage, "assets": assets}
+
+
+# --------------------------------------------------------------------------- AI (T2)
+def ai_enabled(conn: sqlite3.Connection) -> bool:
+    from . import settings
+
+    return settings.load(conn, "ai").enabled
+
+
+def enqueue_ai(conn: sqlite3.Connection, asset_id: int, priority: int, requeue: bool = True) -> None:
+    for stage in AI_STAGES:
+        enqueue(conn, stage, asset_id=asset_id, priority=priority, requeue=requeue)
+
+
+def enqueue_ai_backfill(conn: sqlite3.Connection) -> int:
+    """Queue tags + embedding for every displayable photo that has none yet (AI just switched on)."""
+    rows = conn.execute(
+        "SELECT a.id FROM assets a JOIN derivatives d ON d.asset_id = a.id AND d.kind = 'thumb_512' "
+        "WHERE a.status = 'ready' AND a.is_hidden = 0 AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.asset_id = a.id "
+        "AND j.stage = 'classify' AND j.status = 'succeeded')"
+    ).fetchall()
+    for (aid,) in rows:
+        enqueue_ai(conn, aid, 100 + AI_PRIORITY_OFFSET, requeue=False)
+    return len(rows)
+
+
+def cancel_queued_ai(conn: sqlite3.Connection) -> int:
+    marks = ",".join("?" for _ in AI_STAGES)
+    return conn.execute(f"DELETE FROM jobs WHERE stage IN ({marks}) AND status = 'queued'", AI_STAGES).rowcount
+
+
+def _ai_payload(conn: sqlite3.Connection, job: sqlite3.Row, library_dir: Path | None) -> dict:
+    from . import ai_models, settings
+
+    if library_dir is None:
+        raise ValueError("AI stages need the library folder")
+    row = conn.execute(
+        "SELECT rel_path FROM derivatives WHERE asset_id = ? AND kind = 'thumb_512'", (job["asset_id"],)
+    ).fetchone()
+    if row is None:
+        raise MissingFile(f"asset {job['asset_id']} has no thumbnail")
+    return {
+        "path": str(library_dir / row[0]),
+        "models": str(ai_models.models_dir(library_dir)),
+        "max_tags": settings.load(conn, "ai").max_tags,
+        # the AI worker may use as many cores as background work is allowed in total
+        "threads": settings.load(conn, "resources").threads,
+    }
+
+
+def _clip_model_id(conn: sqlite3.Connection) -> int:
+    from .ai_models import CLIP_DIMS, CLIP_NAME, CLIP_VERSION
+
+    conn.execute(
+        "INSERT INTO embedding_models (name, version, modality, dims, is_active) VALUES (?, ?, 'image', ?, 1) "
+        "ON CONFLICT (name, version, modality) DO NOTHING",
+        (CLIP_NAME, CLIP_VERSION, CLIP_DIMS),
+    )
+    # the planned OpenCLIP placeholder from the first schema is not the model in use
+    conn.execute(
+        "UPDATE embedding_models SET is_active = (name = ? AND version = ?) WHERE modality = 'image' AND is_active != "
+        "(name = ? AND version = ?)",
+        (CLIP_NAME, CLIP_VERSION, CLIP_NAME, CLIP_VERSION),
+    )
+    return conn.execute(
+        "SELECT id FROM embedding_models WHERE name = ? AND version = ? AND modality = 'image'",
+        (CLIP_NAME, CLIP_VERSION),
+    ).fetchone()[0]
+
+
+def _apply_embedding(conn: sqlite3.Connection, asset_id: int, vector: list[float]) -> None:
+    model = _clip_model_id(conn)
+    row = conn.execute(
+        "SELECT id FROM embeddings WHERE asset_id = ? AND model_id = ? AND region_id IS NULL", (asset_id, model)
+    ).fetchone()
+    if row is None:
+        row = conn.execute(
+            "INSERT INTO embeddings (asset_id, model_id) VALUES (?, ?) RETURNING id", (asset_id, model)
+        ).fetchone()
+    conn.execute("DELETE FROM vec_clip_b32 WHERE rowid = ?", (row[0],))
+    conn.execute("INSERT INTO vec_clip_b32 (rowid, embedding) VALUES (?, ?)", (row[0], json.dumps(vector)))
+
+
+def apply_ai_tags(conn: sqlite3.Connection, asset_id: int, tags: list) -> None:
+    """Replace this photo's earlier AI tags. Tags you removed (rejected) never come back; tags you
+    confirmed or added yourself are left alone."""
+    from .library import get_or_create_tags
+
+    conn.execute(
+        "DELETE FROM asset_tags WHERE asset_id = ? AND origin = 'ai' AND rejected = 0 AND confirmed_at IS NULL",
+        (asset_id,),
+    )
+    names = [str(n) for n, _ in tags]
+    for tag_id, (_, conf) in zip(get_or_create_tags(conn, names), tags, strict=True):
+        conn.execute(
+            "INSERT INTO asset_tags (asset_id, tag_id, origin, confidence) VALUES (?, ?, 'ai', ?) "
+            "ON CONFLICT (asset_id, tag_id) DO NOTHING",
+            (asset_id, tag_id, float(conf)),
+        )
+    refresh_fts(conn, [asset_id])

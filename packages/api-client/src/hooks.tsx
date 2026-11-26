@@ -1,4 +1,5 @@
 import type {
+  AiOptions,
   AssetFilter,
   AssetPatch,
   AssetQuery,
@@ -390,7 +391,7 @@ export function useExport() {
 }
 
 /** Latest export progress from live events, or undefined. */
-export function useTaskProgress(name: "export"): TaskProgressEvent | undefined {
+export function useTaskProgress(name: "export" | "ai_models"): TaskProgressEvent | undefined {
   const qc = useQueryClient();
   return useQuery({
     queryKey: keys.task(name),
@@ -427,5 +428,37 @@ export function useDeleteCollection() {
   return useMutation({
     mutationFn: (id: number) => unwrap(api.DELETE("/v1/collections/{coll_id}", { params: { path: { coll_id: id } } })),
     onSuccess: () => refresh(qc, keys.collections, keys.assets.all, keys.asset.all),
+  });
+}
+
+// ------------------------------------------------------------------ automatic tags (T2)
+/** Model download, the on/off switch and how far tagging has got. Polled while work is going on. */
+export function useAi() {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.ai,
+    queryFn: () => unwrap(api.GET("/v1/ai")),
+    refetchInterval: (q) => {
+      const d = q.state.data;
+      return d && (d.download.state === "downloading" || (d.enabled && d.photos_waiting > 0)) ? 3000 : false;
+    },
+  });
+}
+
+export function useInstallAi() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.POST("/v1/ai:install")),
+    onSuccess: (data) => qc.setQueryData(keys.ai, data),
+  });
+}
+
+export function useSaveAiOptions() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AiOptions) => unwrap(api.PUT("/v1/settings/ai", { body })),
+    onSuccess: () => refresh(qc, keys.ai),
   });
 }
