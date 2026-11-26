@@ -478,6 +478,30 @@ export function useSimilar(id: number, limit = 120) {
   });
 }
 
+// ------------------------------------------------------------------ teach a tag (T5)
+export function useTaughtTags() {
+  const api = useApi();
+  return useQuery({ queryKey: keys.aiTaught, queryFn: () => unwrap(api.GET("/v1/ai/taught")) });
+}
+
+export function useTeachTag() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; prompt: string; threshold: number }) => unwrap(api.POST("/v1/ai/teach", { body })),
+    onSuccess: () => refresh(qc, keys.aiTaught, keys.tags, keys.assets.all, keys.asset.all),
+  });
+}
+
+export function useUntrainTag() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (tagId: number) => unwrap(api.DELETE("/v1/ai/taught/{tag_id}", { params: { path: { tag_id: tagId } } })),
+    onSuccess: () => refresh(qc, keys.aiTaught, keys.tags, keys.assets.all, keys.asset.all),
+  });
+}
+
 export function useInstallAi() {
   const api = useApi();
   const qc = useQueryClient();

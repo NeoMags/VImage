@@ -187,6 +187,7 @@ def apply_result(conn: sqlite3.Connection, job: sqlite3.Row, data: dict | None) 
         return "succeeded", None
     if stage == "embed":
         _apply_embedding(conn, job["asset_id"], data["vector"])
+        apply_taught_tags(conn, job["asset_id"])
         return "succeeded", None
     if stage == "classify":  # RAM++ tags (doc 06 stage 6)
         apply_ai_tags(conn, job["asset_id"], data["tags"])
@@ -422,4 +423,25 @@ def apply_ai_tags(conn: sqlite3.Connection, asset_id: int, tags: list) -> None:
             "ON CONFLICT (asset_id, tag_id) DO NOTHING",
             (asset_id, tag_id, float(conf)),
         )
+    apply_taught_tags(conn, asset_id, refresh=False)  # the delete above also cleared taught tags
     refresh_fts(conn, [asset_id])
+
+
+def apply_taught_tags(conn: sqlite3.Connection, asset_id: int, refresh: bool = True) -> int:
+    """T5: give this photo every taught tag it matches (score >= the tag's threshold), as AI tags.
+    Rejected tags stay rejected; tags already on the photo are left as they are."""
+    rows = conn.execute(
+        "SELECT t.tag_id, 1 - vec_distance_cosine(v.embedding, t.vector) FROM taught_tags t "
+        "JOIN embeddings e ON e.asset_id = ? JOIN vec_clip_b32 v ON v.rowid = e.id "
+        "WHERE 1 - vec_distance_cosine(v.embedding, t.vector) >= t.threshold",
+        (asset_id,),
+    ).fetchall()
+    for tag_id, score in rows:
+        conn.execute(
+            "INSERT INTO asset_tags (asset_id, tag_id, origin, confidence) VALUES (?, ?, 'ai', ?) "
+            "ON CONFLICT (asset_id, tag_id) DO NOTHING",
+            (asset_id, tag_id, round(score, 4)),
+        )
+    if rows and refresh:
+        refresh_fts(conn, [asset_id])
+    return len(rows)

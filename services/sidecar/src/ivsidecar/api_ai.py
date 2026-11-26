@@ -6,6 +6,8 @@ PUT  /v1/settings/ai   {enabled, max_tags}; switching on queues every photo, off
 GET  /v1/ai/groups     "Sorted by AI": the most common AI tags, as virtual groups (T3)
 POST /v1/search        {text, limit}: photos that look like a description (T4)
 GET  /v1/assets/{id}/similar   photos that look like this one (T4)
+POST /v1/ai/teach      {name, prompt, threshold}: teach a tag by example (T5)
+GET  /v1/ai/taught     taught tags; DELETE /v1/ai/taught/{tag_id} undoes one
 """
 
 from __future__ import annotations
@@ -30,6 +32,15 @@ class SearchBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=1, max_length=300)
     limit: int = Field(60, ge=1, le=200)
+
+
+class TeachBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=100)
+    prompt: str = Field(min_length=1, max_length=300)
+    """The description that was searched; its vector is what new photos are compared with."""
+    threshold: float = Field(ge=-1, le=1)
+    """Score of the weakest match you accepted (a search result's score)."""
 
 
 class TextEncoder:
@@ -164,6 +175,41 @@ def build_router(conn: sqlite3.Connection, db_lock: threading.RLock, queue: JobQ
         if vec is None:
             raise HTTPException(status_code=409, detail="this photo has not been analysed yet")
         return results(lib.search_by_vector, vec, limit, asset_id)
+
+    @r.post("/ai/teach")
+    def teach(body: TeachBody) -> S.TeachResult:
+        """Tag every photo that scores at least `threshold` for `prompt` with `name`, now and
+        as new photos are analysed. The tags are AI tags: review or remove them like any other."""
+        if not ai_models.installed(library_dir):
+            raise HTTPException(status_code=409, detail="download the AI models first")
+        vec = encoder.embed(body.prompt)
+        with db_lock:
+            try:
+                with lib.tx(conn):
+                    out = lib.teach_tag(conn, body.name.strip(), body.prompt.strip(), vec, body.threshold)
+            except lib.Invalid as e:
+                raise HTTPException(status_code=422, detail=str(e)) from e
+        bus.asset_updated_all()
+        bus.changed("tags")
+        return out
+
+    @r.get("/ai/taught")
+    def taught() -> list[S.TaughtTag]:
+        with db_lock:
+            return lib.list_taught(conn)
+
+    @r.delete("/ai/taught/{tag_id}")
+    def untrain(tag_id: int) -> S.Untaught:
+        """Undo teaching: AI copies of the tag are removed; ones you accepted or added stay."""
+        with db_lock:
+            try:
+                with lib.tx(conn):
+                    n = lib.untrain_tag(conn, tag_id)
+            except lib.NotFound as e:
+                raise HTTPException(status_code=404, detail=str(e)) from e
+        bus.asset_updated_all()
+        bus.changed("tags")
+        return {"photos_untagged": n}
 
     @r.get("/settings/ai")
     def get_ai_settings() -> settings.AiOptions:

@@ -388,3 +388,74 @@ def test_clip_tokenizer_bpe(tmp_path):
     assert tok.encode("  CAT!  ") == [0, 7, 8, 1]
     assert tok.encode("cat <|endoftext|> cat") == [0, 7, 7, 1]  # typed special tokens are ignored
     assert len(tok.encode("cat " * 200)) == 77 and tok.encode("cat " * 200)[-1] == 1
+
+
+# --------------------------------------------------------------------------- T5: teach a tag
+def test_teach_a_tag_tags_matches_now_and_new_photos_later_and_can_be_undone(tmp_path, monkeypatch):
+    from ivsidecar import api_ai
+
+    lib, src, conn = _library(tmp_path)
+    settings.save(conn, "ai", settings.AiOptions(enabled=True))
+    _photos(src, ("red", "darkred", "blue"))
+    _register_all(conn, src)
+    _run(lib, conn)
+    monkeypatch.setattr(ai_models, "installed", lambda d: True)
+    monkeypatch.setattr(api_ai.TextEncoder, "embed", lambda self, text: _colour_vec(255, 0, 0))
+    app = create_app(conn, TOKEN, time.time())
+    with TestClient(app) as c:
+        hits = c.post("/v1/search", json={"text": "my red stuff", "limit": 3}, headers=AUTH).json()["items"]
+        cut = hits[1]["score"]  # you accept the best two
+        r = c.post("/v1/ai/teach", json={"name": "Red stuff", "prompt": "my red stuff", "threshold": cut}, headers=AUTH)
+        assert r.status_code == 200 and r.json()["photos_tagged"] == 2
+        tid = r.json()["tag_id"]
+        assert _tags(conn, "red.png")["Red stuff"] == "ai:0" and "Red stuff" not in _tags(conn, "blue.png")
+        # you remove it from one photo; it never comes back
+        dark = _asset(conn, "darkred.png")
+        c.delete(f"/v1/assets/{dark}/tags/{tid}", headers=AUTH)
+        # a new matching photo is tagged when analysed, even after RAM++ replaces its AI tags
+        Image.new("RGB", (64, 48), (250, 0, 0)).save(src / "crimson.png")  # nearer than darkred
+        _register_all(conn, src)
+        _run(lib, conn)
+        assert _tags(conn, "crimson.png")["Red stuff"] == "ai:0"
+        assert _tags(conn, "darkred.png")["Red stuff"] == "ai:1"
+        # re-running classify on a photo keeps its taught tag
+        with lib_mod.tx(conn):
+            handlers.apply_ai_tags(conn, _asset(conn, "red.png"), [("red thing", 0.9)])
+        assert "Red stuff" in _tags(conn, "red.png")
+        taught = c.get("/v1/ai/taught", headers=AUTH).json()
+        assert [(t["name"], t["prompt"], t["photos"]) for t in taught] == [("Red stuff", "my red stuff", 2)]
+        # accept it on one photo, then undo teaching: the accepted one stays, the rest go
+        c.post("/v1/assets:bulk", json={"ids": [_asset(conn, "red.png")], "confirm_ai_tags": True}, headers=AUTH)
+        r = c.delete(f"/v1/ai/taught/{tid}", headers=AUTH)
+        assert r.json() == {"photos_untagged": 1}
+        assert "Red stuff" in _tags(conn, "red.png") and "Red stuff" not in _tags(conn, "crimson.png")
+        assert _tags(conn, "darkred.png")["Red stuff"] == "ai:1"
+        assert c.get("/v1/ai/taught", headers=AUTH).json() == []
+        assert c.delete(f"/v1/ai/taught/{tid}", headers=AUTH).status_code == 404
+        # new photos are no longer tagged
+        Image.new("RGB", (64, 48), (230, 10, 10)).save(src / "scarlet.png")
+        _register_all(conn, src)
+        _run(lib, conn)
+        assert "Red stuff" not in _tags(conn, "scarlet.png")
+
+
+def test_teach_needs_models_and_valid_input(tmp_path, monkeypatch):
+    monkeypatch.delenv("IV_MODELS_DIR", raising=False)  # CI has the real models there
+    lib, src, conn = _library(tmp_path)
+    app = create_app(conn, TOKEN, time.time())
+    with TestClient(app) as c:
+        body = {"name": "x", "prompt": "x", "threshold": 0.3}
+        assert c.post("/v1/ai/teach", json=body, headers=AUTH).status_code == 409
+        assert c.post("/v1/ai/teach", json={**body, "threshold": 2}, headers=AUTH).status_code == 422
+
+
+def test_teach_falls_back_to_a_full_scan_when_many_photos_match(tmp_path, monkeypatch):
+    lib, src, conn = _library(tmp_path)
+    settings.save(conn, "ai", settings.AiOptions(enabled=True))
+    _photos(src, ("red", "darkred", "blue"))
+    _register_all(conn, src)
+    _run(lib, conn)
+    monkeypatch.setattr(lib_mod, "TEACH_KNN", 1)  # the nearest-first pass is full: scan everything
+    with lib_mod.tx(conn):
+        out = lib_mod.teach_tag(conn, "reddish", "red", _colour_vec(255, 0, 0), 0.9)
+    assert out["photos_tagged"] == 2 and "reddish" not in _tags(conn, "blue.png")

@@ -3509,6 +3509,113 @@
         "title": "TagMerged",
         "type": "object"
       },
+      "TaughtTag": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "photos": {
+            "title": "Photos",
+            "type": "integer"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "integer"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "tag_id",
+          "name",
+          "prompt",
+          "threshold",
+          "photos",
+          "created_at"
+        ],
+        "title": "TaughtTag",
+        "type": "object"
+      },
+      "TeachBody": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "threshold": {
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "prompt",
+          "threshold"
+        ],
+        "title": "TeachBody",
+        "type": "object"
+      },
+      "TeachResult": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "photos_tagged": {
+            "title": "Photos Tagged",
+            "type": "integer"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tag_id",
+          "name",
+          "photos_tagged"
+        ],
+        "title": "TeachResult",
+        "type": "object"
+      },
+      "Untaught": {
+        "additionalProperties": false,
+        "properties": {
+          "photos_untagged": {
+            "title": "Photos Untagged",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "photos_untagged"
+        ],
+        "title": "Untaught",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -3696,6 +3803,151 @@
           }
         },
         "summary": "Ai Groups"
+      }
+    },
+    "/v1/ai/taught": {
+      "get": {
+        "operationId": "taught_v1_ai_taught_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaughtTag"
+                  },
+                  "title": "Response Taught V1 Ai Taught Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Taught"
+      }
+    },
+    "/v1/ai/taught/{tag_id}": {
+      "delete": {
+        "description": "Undo teaching: AI copies of the tag are removed; ones you accepted or added stay.",
+        "operationId": "untrain_v1_ai_taught__tag_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Untaught"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Untrain"
+      }
+    },
+    "/v1/ai/teach": {
+      "post": {
+        "description": "Tag every photo that scores at least `threshold` for `prompt` with `name`, now and\nas new photos are analysed. The tags are AI tags: review or remove them like any other.",
+        "operationId": "teach_v1_ai_teach_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeachBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeachResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Teach"
       }
     },
     "/v1/ai:install": {

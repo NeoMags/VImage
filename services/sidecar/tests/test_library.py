@@ -544,6 +544,16 @@ def test_100k_list_and_detail_timings(api):
     assert len(sim["items"]) == 60 and sim["photos_analysed"] == n
     assert sim_ms < (600 if os.name == "nt" else 300)  # T4 plan budget: 300 ms at 100k
 
+    # T5: teaching a tag scores every photo once (a full scan; it runs when you press Teach).
+    probe = rng.standard_normal(512).astype(np.float32)
+    probe /= np.linalg.norm(probe)
+    t0 = time.perf_counter()
+    with lib.tx(conn):
+        out = lib.teach_tag(conn, "taught", "probe", probe.tobytes(), 0.1)
+    teach_ms = (time.perf_counter() - t0) * 1000
+    print(f"teach a tag over {n} vectors: {teach_ms:.0f} ms, {out['photos_tagged']} tagged")
+    assert teach_ms < (1500 if os.name == "nt" else 750)  # measured ~0.4 s on Linux
+
 
 def test_cursor_is_opaque_but_tamper_safe(api):
     conn, client = api

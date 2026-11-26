@@ -53,6 +53,9 @@ B8a status (2026-11-25): rows marked **Built** exist. B8b (same day): every erro
 | `POST /assets:bulk` `confirm_ai_tags: true` | T3: accept every AI tag on the selected photos |
 | `POST /search` `{text, limit≤200}` | T4: photos that look like a description, best first, `{items: [summary + score], photos_analysed}`; 409 until the models are installed. Exact nearest neighbours over `vec_clip_b32` |
 | `GET /assets/{id}/similar?limit=` | T4: "More like this", same shape; never the photo itself or hidden photos; 409 until the photo has a vector |
+| `POST /ai/teach` `{name, prompt, threshold −1..1}` | T5 "Teach a tag": gives the tag (as an AI tag) to every photo whose CLIP match to `prompt` is ≥ `threshold`, and stores the rule so photos analysed later get it too. Returns `{tag_id, name, photos_tagged}`; 409 until the models are installed. Teaching the same tag again replaces its rule. Tags you removed stay removed |
+| `GET /ai/taught` | T5: `[{tag_id, name, prompt, threshold, photos, created_at}]` |
+| `DELETE /ai/taught/{tag_id}` | T5 undo: drops the rule and the AI copies of the tag that you have not accepted; accepted ones stay. `{photos_untagged}`; 404 if not taught |
 
 ### Phase D2–D3
 | Method & path | Purpose |
