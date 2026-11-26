@@ -20,6 +20,11 @@ from .stages import PIPELINE_VERSION
 
 AI_STAGES = ("embed", "classify")
 AI_PRIORITY_OFFSET = 50  # after stages 1-4 of the same priority: photos appear first, tags follow
+# OCR (K2) runs after a photo is shown; likely screenshots/scans first (approved D2 plan, decision 4)
+OCR_PRIORITY_OFFSET = 30
+OCR_FIRST_OFFSET = 20
+# Extra stages: their failure is shown on the job, not on the photo (the photo itself is fine)
+EXTRA_STAGES = (*AI_STAGES, "ocr")
 
 LOCATION_STAGES = ("identify", "hash")
 NOW = "strftime('%Y-%m-%dT%H:%M:%fZ','now')"
@@ -120,6 +125,15 @@ def build_payload(
     if job["stage"] in AI_STAGES:
         return _ai_payload(conn, job, library_dir)
     payload = {"path": str(_asset_path(conn, job["asset_id"]))}
+    if job["stage"] == "ocr":
+        from . import settings
+
+        o = conn.execute("SELECT orientation FROM asset_metadata WHERE asset_id = ?", (job["asset_id"],)).fetchone()
+        payload.update(
+            orientation=o[0] if o else None,
+            max_pixels=max_pixels,
+            threads=settings.load(conn, "resources").threads,
+        )
     if job["stage"] == "thumbnail":
         uid = conn.execute("SELECT uid FROM assets WHERE id = ?", (job["asset_id"],)).fetchone()[0]
         o = conn.execute("SELECT orientation FROM asset_metadata WHERE asset_id = ?", (job["asset_id"],)).fetchone()
@@ -184,7 +198,11 @@ def apply_result(conn: sqlite3.Connection, job: sqlite3.Row, data: dict | None) 
         _apply_thumbnail(conn, job, data)
         if data is not None and ai_enabled(conn):
             enqueue_ai(conn, job["asset_id"], prio + AI_PRIORITY_OFFSET)
+        if data is not None and ocr_enabled(conn):
+            enqueue_ocr(conn, job["asset_id"], prio, requeue=True)
         return "succeeded", None
+    if stage == "ocr":
+        return "succeeded", store_ocr(conn, job["asset_id"], data)
     if stage == "embed":
         _apply_embedding(conn, job["asset_id"], data["vector"])
         apply_taught_tags(conn, job["asset_id"])
@@ -309,7 +327,7 @@ def _apply_thumbnail(conn: sqlite3.Connection, job: sqlite3.Row, d: dict | None)
 
 def apply_failure(conn: sqlite3.Connection, job: sqlite3.Row, error: str) -> None:
     """A job gave up (failed or dead): show it on the asset so the UI can offer Retry."""
-    if job["asset_id"] is not None:
+    if job["asset_id"] is not None and job["stage"] not in EXTRA_STAGES:
         conn.execute(
             f"UPDATE assets SET status = 'failed', error = ?, updated_at = {NOW} WHERE id = ?",
             (f"{job['stage']}: {error}"[:1000], job["asset_id"]),
@@ -445,3 +463,90 @@ def apply_taught_tags(conn: sqlite3.Connection, asset_id: int, refresh: bool = T
     if rows and refresh:
         refresh_fts(conn, [asset_id])
     return len(rows)
+
+
+# --------------------------------------------------------------------------- OCR (K2)
+def ocr_enabled(conn: sqlite3.Connection) -> bool:
+    from . import settings
+
+    return settings.load(conn, "ocr").enabled
+
+
+def _ocr_priority(conn: sqlite3.Connection, asset_id: int, base: int) -> int:
+    """Likely screenshots or scans first: PNGs, or 'screenshot'/'scan' in the file name. (K3 adds
+    a proper screenshot class; this only orders the queue.)"""
+    row = conn.execute(
+        "SELECT a.mime_type = 'image/png' OR EXISTS (SELECT 1 FROM file_locations l WHERE l.asset_id = a.id AND "
+        "(lower(l.rel_path) LIKE '%screenshot%' OR lower(l.rel_path) LIKE '%screen shot%' "
+        "OR lower(l.rel_path) LIKE '%scan%')) FROM assets a WHERE a.id = ?",
+        (asset_id,),
+    ).fetchone()
+    return base + (OCR_FIRST_OFFSET if row and row[0] else OCR_PRIORITY_OFFSET)
+
+
+def enqueue_ocr(conn: sqlite3.Connection, asset_id: int, base_priority: int = 100, requeue: bool = False) -> None:
+    enqueue(conn, "ocr", asset_id=asset_id, priority=_ocr_priority(conn, asset_id, base_priority), requeue=requeue)
+
+
+def enqueue_ocr_backfill(conn: sqlite3.Connection, again: bool = False) -> int:
+    """Queue OCR for every displayable image without it (OCR switched on). again=True re-reads all
+    of them (Settings > Read text again); text you edited is still kept."""
+    done = (
+        ""
+        if again
+        else (
+            "AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.asset_id = a.id AND j.stage = 'ocr' AND j.status = 'succeeded')"
+        )
+    )
+    rows = conn.execute(
+        "SELECT a.id FROM assets a JOIN derivatives d ON d.asset_id = a.id AND d.kind = 'thumb_512' "
+        f"WHERE a.status = 'ready' AND a.kind = 'image' {done}"
+    ).fetchall()
+    for (aid,) in rows:
+        enqueue_ocr(conn, aid, requeue=again)
+    return len(rows)
+
+
+def cancel_queued_ocr(conn: sqlite3.Connection) -> int:
+    return conn.execute("DELETE FROM jobs WHERE stage = 'ocr' AND status = 'queued'").rowcount
+
+
+def set_search_text(conn: sqlite3.Connection, asset_id: int, text: str) -> None:
+    """The photo's text in the word index (asset_fts.ocr_text) and the exact-substring index."""
+    if conn.execute("SELECT 1 FROM asset_fts WHERE rowid = ?", (asset_id,)).fetchone() is None:
+        refresh_fts(conn, [asset_id])
+    conn.execute("UPDATE asset_fts SET ocr_text = ? WHERE rowid = ?", (text or None, asset_id))
+    conn.execute("DELETE FROM ocr_trigram WHERE rowid = ?", (asset_id,))
+    if text:
+        conn.execute("INSERT INTO ocr_trigram (rowid, ocr_text) VALUES (?, ?)", (asset_id, text))
+
+
+def current_text(conn: sqlite3.Connection, asset_id: int) -> tuple[int, str, str] | None:
+    """(id, origin, full_text) of the text shown for this photo, or None."""
+    return conn.execute(
+        "SELECT id, origin, full_text FROM extracted_text WHERE asset_id = ? AND is_current = 1", (asset_id,)
+    ).fetchone()
+
+
+def store_ocr(conn: sqlite3.Connection, asset_id: int, d: dict) -> str | None:
+    """Replace the photo's OCR result. Text you edited stays the current text (decision: your edits
+    are never overwritten); the new OCR lines are still kept for highlighting boxes."""
+    lines = d["lines"]
+    full = "\n".join(ln["text"] for ln in lines)
+    cur = current_text(conn, asset_id)
+    yours = cur is not None and cur[1] == "user"
+    conn.execute("DELETE FROM extracted_text WHERE asset_id = ? AND origin = 'ai'", (asset_id,))
+    tid = conn.execute(
+        "INSERT INTO extracted_text (asset_id, engine, engine_version, language, full_text, confidence, origin, "
+        "is_current) VALUES (?, ?, ?, 'en', ?, ?, 'ai', ?) RETURNING id",
+        (asset_id, d["engine"], d["engine_version"], full, d.get("confidence"), 0 if yours else 1),
+    ).fetchone()[0]
+    conn.executemany(
+        "INSERT INTO text_regions (extracted_text_id, line_no, text, x, y, w, h, confidence) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [(tid, i, ln["text"], ln["x"], ln["y"], ln["w"], ln["h"], ln.get("confidence")) for i, ln in enumerate(lines)],
+    )
+    if yours:
+        return "kept your edited text"
+    set_search_text(conn, asset_id, full)
+    return None if lines else "no text"

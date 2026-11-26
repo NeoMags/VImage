@@ -14,7 +14,7 @@ describe("parseMessage", () => {
     }
     const kinds = sample.flatMap((m) => ("events" in m && m.events ? m.events.map((e) => e.type) : [m.type]));
     expect(new Set(kinds)).toEqual(
-      new Set(["hello", "asset.updated", "job.updated", "scan.progress", "source.status", "tags.updated", "collections.updated", "task.progress", "library.restored", "ai.updated", "resync"]),
+      new Set(["hello", "asset.updated", "job.updated", "scan.progress", "source.status", "tags.updated", "collections.updated", "task.progress", "library.restored", "ai.updated", "ocr.updated", "resync"]),
     );
   });
 

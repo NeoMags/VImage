@@ -44,3 +44,21 @@ def fake_ai(stage, payload, ctx):
         return {"vector": [x / n for x in v]}
     main = max((r, "red"), (g, "green"), (b, "blue"))[1]
     return {"tags": [(f"{main} thing", 0.9), ("object", 0.6)][: payload["max_tags"]]}
+
+
+def fake_ocr(stage, payload, ctx):
+    """Stands in for RapidOCR (real OCR is tested in test_text.py / test_ocr.py): one line naming
+    the file, and a failure for files named *ocrfail*."""
+    if stage != "ocr":
+        return run_stage(stage, payload, ctx)
+    name = Path(payload["path"]).stem
+    if "ocrfail" in name:
+        raise OSError("ocr engine hiccup")
+    if "blank" in name:
+        lines = []
+    else:
+        lines = [
+            {"text": f"Invoice {name}", "confidence": 0.98, "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.05},
+            {"text": "Call +1 555 0100 1234", "confidence": 0.9, "x": 0.1, "y": 0.3, "w": 0.6, "h": 0.05},
+        ]
+    return {"engine": "fake", "engine_version": "1", "confidence": 0.95 if lines else None, "lines": lines}

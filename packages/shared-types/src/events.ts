@@ -25,6 +25,8 @@ export type LiveEvent =
   | { type: "tags.updated" }
   | { type: "collections.updated" }
   | { type: "ai.updated" }
+  /** Reading text (K2) switched on/off or queued again. */
+  | { type: "ocr.updated" }
   | TaskProgressEvent
   /** A backup replaced the library: refetch everything. */
   | { type: "library.restored" }

@@ -49,6 +49,9 @@
         "type": "library.restored"
       },
       {
+        "type": "ocr.updated"
+      },
+      {
         "type": "tags.updated"
       }
     ]

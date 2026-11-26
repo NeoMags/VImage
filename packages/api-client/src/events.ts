@@ -7,7 +7,7 @@ import { keys } from "./keys";
 // ------------------------------------------------------------------------------ parsing
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 const isInt = (v: unknown): v is number => Number.isInteger(v);
-const SIMPLE = new Set(["tags.updated", "collections.updated", "ai.updated", "resync", "library.restored"]);
+const SIMPLE = new Set(["tags.updated", "collections.updated", "ai.updated", "ocr.updated", "resync", "library.restored"]);
 
 function parseEvent(e: unknown): LiveEvent | null {
   if (!isObj(e) || typeof e.type !== "string") return null;
@@ -100,6 +100,10 @@ export function planFor(events: LiveEvent[]): RefreshPlan {
         break;
       case "collections.updated":
         add(keys.collections);
+        break;
+      case "ocr.updated":
+        add(keys.ocr);
+        add(keys.settings.ocr);
         break;
       case "ai.updated":
         add(keys.ai);

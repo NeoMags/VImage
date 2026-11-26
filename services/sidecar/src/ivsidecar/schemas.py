@@ -546,3 +546,37 @@ class AiStatus(Out):
     photos_waiting: int
     photos_failed: int
     photos_with_ai_tags: int
+
+
+# ---------------------------------------------------------------------------- text in photos (K2)
+class TextLine(Out):
+    line_no: int
+    text: str
+    x: float
+    """Box as fractions of the image's width/height (0..1), upright as displayed."""
+    y: float
+    w: float
+    h: float
+    confidence: float | None
+
+
+class AssetText(Out):
+    state: Literal["not_read", "waiting", "reading", "done", "failed"]
+    error: str | None
+    text: str
+    """The current text: yours if you edited it, else what OCR read. Empty when there is none."""
+    origin: Literal["ai", "user"] | None
+    engine: str | None
+    confidence: float | None
+    updated_at: str | None
+    lines: list[TextLine]
+    """Lines OCR found, with boxes (kept even after you edit the text)."""
+
+
+class OcrStatus(Out):
+    enabled: bool
+    photos_done: int
+    photos_waiting: int
+    photos_failed: int
+    photos_with_text: int
+    photos_edited: int

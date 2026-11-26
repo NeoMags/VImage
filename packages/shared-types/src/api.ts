@@ -294,6 +294,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/assets/{asset_id}/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Text */
+        get: operations["get_text_v1_assets__asset_id__text_get"];
+        /** Put Text */
+        put: operations["put_text_v1_assets__asset_id__text_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assets/{asset_id}/text/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revert */
+        delete: operations["revert_v1_assets__asset_id__text_edit_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assets/{asset_id}/text:rerun": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rerun */
+        post: operations["rerun_v1_assets__asset_id__text_rerun_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assets/{asset_id}/unhide": {
         parameters: {
             query?: never;
@@ -612,6 +664,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ocr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ocr Status */
+        get: operations["ocr_status_v1_ocr_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ocr:rerun": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ocr Rerun
+         * @description Read the text of every photo again (e.g. after an OCR update). Text you edited is kept.
+         */
+        post: operations["ocr_rerun_v1_ocr_rerun_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/search": {
         parameters: {
             query?: never;
@@ -661,6 +750,24 @@ export interface paths {
         get: operations["get_backup_settings_v1_settings_backup_get"];
         /** Put Backup Settings */
         put: operations["put_backup_settings_v1_settings_backup_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/settings/ocr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ocr Settings */
+        get: operations["get_ocr_settings_v1_settings_ocr_get"];
+        /** Put Ocr Settings */
+        put: operations["put_ocr_settings_v1_settings_ocr_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1187,6 +1294,28 @@ export interface components {
             /** Tags */
             tags: components["schemas"]["AssetTag"][];
         };
+        /** AssetText */
+        AssetText: {
+            /** Confidence */
+            confidence: number | null;
+            /** Engine */
+            engine: string | null;
+            /** Error */
+            error: string | null;
+            /** Lines */
+            lines: components["schemas"]["TextLine"][];
+            /** Origin */
+            origin: ("ai" | "user") | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "not_read" | "waiting" | "reading" | "done" | "failed";
+            /** Text */
+            text: string;
+            /** Updated At */
+            updated_at: string | null;
+        };
         /** AssetVersion */
         AssetVersion: {
             /** Byte Size */
@@ -1622,6 +1751,32 @@ export interface components {
             /** Body */
             body: string;
         };
+        /**
+         * OcrOptions
+         * @description Text in photos (K2). On by default: the OCR models ship with the app.
+         */
+        OcrOptions: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+        };
+        /** OcrStatus */
+        OcrStatus: {
+            /** Enabled */
+            enabled: boolean;
+            /** Photos Done */
+            photos_done: number;
+            /** Photos Edited */
+            photos_edited: number;
+            /** Photos Failed */
+            photos_failed: number;
+            /** Photos Waiting */
+            photos_waiting: number;
+            /** Photos With Text */
+            photos_with_text: number;
+        };
         /** Paused */
         Paused: {
             /** Paused */
@@ -1994,6 +2149,28 @@ export interface components {
             photos_tagged: number;
             /** Tag Id */
             tag_id: number;
+        };
+        /** TextBody */
+        TextBody: {
+            /** Text */
+            text: string;
+        };
+        /** TextLine */
+        TextLine: {
+            /** Confidence */
+            confidence: number | null;
+            /** H */
+            h: number;
+            /** Line No */
+            line_no: number;
+            /** Text */
+            text: string;
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
         };
         /** Untaught */
         Untaught: {
@@ -2683,6 +2860,142 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_text_v1_assets__asset_id__text_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetText"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_text_v1_assets__asset_id__text_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetText"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revert_v1_assets__asset_id__text_edit_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetText"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rerun_v1_assets__asset_id__text_rerun_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetText"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -3465,6 +3778,68 @@ export interface operations {
             };
         };
     };
+    ocr_status_v1_ocr_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ocr_rerun_v1_ocr_rerun_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     search_v1_search_post: {
         parameters: {
             query?: never;
@@ -3619,6 +3994,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BackupOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ocr_settings_v1_settings_ocr_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_ocr_settings_v1_settings_ocr_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OcrOptions"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrOptions"];
                 };
             };
             /** @description Validation Error */

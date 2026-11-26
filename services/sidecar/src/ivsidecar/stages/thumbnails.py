@@ -224,4 +224,39 @@ def make_preview(
         raise StageError("decode_failed", (str(e).splitlines() or ["libvips error"])[0][:300]) from e
 
 
-__all__ = ["make_thumbnails", "make_preview", "ThumbResult", "Derivative", "shard_dir", "MAX_PIXELS"]
+OCR_SIZE = 3000  # long side for OCR: keeps small UI text legible, bounds memory on huge scans
+
+
+def decode_for_ocr(
+    path: Path,
+    ident: Identified,
+    exiftool: ExifTool | None = None,
+    orientation: int | None = None,
+    max_pixels: int = MAX_PIXELS,
+    size: int = OCR_SIZE,
+):
+    """The original, upright, at most `size` px on the long side, as an RGB Pillow image (K2).
+
+    Uses the same decoders as the thumbnails (HEIC, RAW preview, Pillow fallback), so anything
+    that has a thumbnail can be read. Transparency is flattened onto white."""
+    from PIL import Image
+
+    if not ident.supported or ident.kind != "image":
+        raise StageError("unsupported", f"no OCR for {ident.mime}")
+    if ident.is_raw and exiftool is None:
+        raise StageError("no_exiftool", "ExifTool is needed for camera RAW previews")
+    img, _, _ = _decode(path, ident, size, exiftool, orientation, max_pixels)
+    try:
+        img = _to_srgb8(img)
+        if img.hasalpha():
+            img = img.flatten(background=[255] * (img.bands - 1))
+        if img.bands == 1:
+            img = img.colourspace("srgb")
+        img = img[:3] if img.bands > 3 else img
+        a = np.ndarray(buffer=img.write_to_memory(), dtype=np.uint8, shape=(img.height, img.width, img.bands))
+    except pyvips.Error as e:
+        raise StageError("decode_failed", (str(e).splitlines() or ["libvips error"])[0][:300]) from e
+    return Image.fromarray(a, "RGB")
+
+
+__all__ = ["make_thumbnails", "make_preview", "decode_for_ocr", "ThumbResult", "Derivative", "shard_dir", "MAX_PIXELS"]

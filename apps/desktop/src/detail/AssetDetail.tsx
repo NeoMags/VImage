@@ -20,6 +20,7 @@ import { EmptyState, ErrorView, errorText, LoadingRows } from "../components/Sta
 import { ago, bytes } from "../format";
 import { useThumbUrl } from "../gallery/thumbs";
 import { revealInExplorer } from "../native";
+import { TextSection } from "./TextSection";
 
 export interface DetailProps {
   id: number;
@@ -94,6 +95,7 @@ function Body({ a, full }: { a: Detail; full: boolean }) {
         <TitleRow a={a} />
         <FromFile a={a} />
         <Yours a={a} />
+        {a.kind === "image" || a.kind === "screenshot" ? <TextSection id={a.id} /> : null}
         <Locations a={a} />
         <Processing a={a} />
       </div>

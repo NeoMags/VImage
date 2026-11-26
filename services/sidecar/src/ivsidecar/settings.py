@@ -65,8 +65,17 @@ class AiOptions(BaseModel):
     max_tags: int = Field(default=8, ge=1, le=20)
 
 
+class OcrOptions(BaseModel):
+    """Text in photos (K2). On by default: the OCR models ship with the app."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+
+
 GROUPS: dict[str, type[BaseModel]] = {
     "ai": AiOptions,
+    "ocr": OcrOptions,
     "resources": Resources,
     "queue": QueueState,
     "scan": ScanOptions,

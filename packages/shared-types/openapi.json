@@ -1076,6 +1076,104 @@
         "title": "AssetTags",
         "type": "object"
       },
+      "AssetText": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "engine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TextLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ai",
+                  "user"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
+          "state": {
+            "enum": [
+              "not_read",
+              "waiting",
+              "reading",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "state",
+          "error",
+          "text",
+          "origin",
+          "engine",
+          "confidence",
+          "updated_at",
+          "lines"
+        ],
+        "title": "AssetText",
+        "type": "object"
+      },
       "AssetVersion": {
         "additionalProperties": false,
         "properties": {
@@ -2513,6 +2611,58 @@
         "title": "NoteBody",
         "type": "object"
       },
+      "OcrOptions": {
+        "additionalProperties": false,
+        "description": "Text in photos (K2). On by default: the OCR models ship with the app.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "title": "OcrOptions",
+        "type": "object"
+      },
+      "OcrStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "photos_done": {
+            "title": "Photos Done",
+            "type": "integer"
+          },
+          "photos_edited": {
+            "title": "Photos Edited",
+            "type": "integer"
+          },
+          "photos_failed": {
+            "title": "Photos Failed",
+            "type": "integer"
+          },
+          "photos_waiting": {
+            "title": "Photos Waiting",
+            "type": "integer"
+          },
+          "photos_with_text": {
+            "title": "Photos With Text",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "photos_done",
+          "photos_waiting",
+          "photos_failed",
+          "photos_with_text",
+          "photos_edited"
+        ],
+        "title": "OcrStatus",
+        "type": "object"
+      },
       "Paused": {
         "additionalProperties": false,
         "properties": {
@@ -3600,6 +3750,72 @@
           "photos_tagged"
         ],
         "title": "TeachResult",
+        "type": "object"
+      },
+      "TextBody": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "maxLength": 100000,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TextBody",
+        "type": "object"
+      },
+      "TextLine": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "line_no": {
+            "title": "Line No",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "line_no",
+          "text",
+          "x",
+          "y",
+          "w",
+          "h",
+          "confidence"
+        ],
+        "title": "TextLine",
         "type": "object"
       },
       "Untaught": {
@@ -5051,6 +5267,210 @@
           }
         },
         "summary": "Untag Asset"
+      }
+    },
+    "/v1/assets/{asset_id}/text": {
+      "get": {
+        "operationId": "get_text_v1_assets__asset_id__text_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetText"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Text"
+      },
+      "put": {
+        "operationId": "put_text_v1_assets__asset_id__text_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetText"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Text"
+      }
+    },
+    "/v1/assets/{asset_id}/text/edit": {
+      "delete": {
+        "operationId": "revert_v1_assets__asset_id__text_edit_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetText"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revert"
+      }
+    },
+    "/v1/assets/{asset_id}/text:rerun": {
+      "post": {
+        "operationId": "rerun_v1_assets__asset_id__text_rerun_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetText"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rerun"
       }
     },
     "/v1/assets/{asset_id}/unhide": {
@@ -6765,6 +7185,87 @@
         "summary": "Retry Job"
       }
     },
+    "/v1/ocr": {
+      "get": {
+        "operationId": "ocr_status_v1_ocr_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ocr Status"
+      }
+    },
+    "/v1/ocr:rerun": {
+      "post": {
+        "description": "Read the text of every photo again (e.g. after an OCR update). Text you edited is kept.",
+        "operationId": "ocr_rerun_v1_ocr_rerun_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ocr Rerun"
+      }
+    },
     "/v1/search": {
       "post": {
         "description": "Photos that look like the description, best first (CLIP; works offline).",
@@ -6990,6 +7491,94 @@
           }
         },
         "summary": "Put Backup Settings"
+      }
+    },
+    "/v1/settings/ocr": {
+      "get": {
+        "operationId": "get_ocr_settings_v1_settings_ocr_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ocr Settings"
+      },
+      "put": {
+        "operationId": "put_ocr_settings_v1_settings_ocr_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OcrOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Ocr Settings"
       }
     },
     "/v1/settings/resources": {

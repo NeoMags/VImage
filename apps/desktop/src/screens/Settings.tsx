@@ -4,6 +4,7 @@ import { Button, Panel } from "@imagevault/ui";
 import { ErrorView, errorText, LoadingRows } from "../components/States";
 import { revealInExplorer } from "../native";
 import { AiPanel } from "./AiPanel";
+import { OcrPanel } from "./OcrPanel";
 import { BackupPanel, ExportPanel } from "./Backup";
 import { useAppPaths } from "../paths";
 import { type ThemeChoice, useTheme } from "../theme";
@@ -40,6 +41,8 @@ export function Settings() {
       </Panel>
 
       <AiPanel />
+
+      <OcrPanel />
 
       <ScanSettings />
 
