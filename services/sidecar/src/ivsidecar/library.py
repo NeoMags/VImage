@@ -980,7 +980,8 @@ def analysed_count(conn: sqlite3.Connection) -> int:
     return conn.execute("SELECT count(*) FROM embeddings").fetchone()[0]
 
 
-TEACH_KNN = 4096
+TEACH_K0 = 256  # first nearest-neighbour pass when teaching a tag
+TEACH_KNN = 4096  # largest pass; beyond it, a full scan
 
 
 def teach_tag(conn: sqlite3.Connection, name: str, prompt: str, vector: bytes, threshold: float) -> dict:
@@ -992,22 +993,27 @@ def teach_tag(conn: sqlite3.Connection, name: str, prompt: str, vector: bytes, t
         "DO UPDATE SET prompt = excluded.prompt, vector = excluded.vector, threshold = excluded.threshold",
         (tag_id, prompt, vector, threshold),
     )
-    # Nearest 4,096 first (fast, ~0.25 s at 100k); only a tag matching more photos than that
-    # needs the full scan (~3.5 s at 100k, measured).
-    knn = conn.execute(
-        "WITH knn AS (SELECT rowid, distance FROM vec_clip_b32 WHERE embedding MATCH ? AND k = ?) "
-        "SELECT e.asset_id, 1 - knn.distance, a.is_hidden FROM knn JOIN embeddings e ON e.id = knn.rowid "
-        "JOIN assets a ON a.id = e.asset_id",
-        (vector, TEACH_KNN),
-    ).fetchall()
-    if len(knn) == TEACH_KNN and min(r[1] for r in knn) >= threshold:
+    # Nearest neighbours first: k = TEACH_K0, and if every one passes, k = TEACH_KNN. Teaching from
+    # the UI keeps the best N of <= 200 search results, so the small pass is the usual case.
+    # Large k is slow on Windows (k=4096 took 3.3 s at 100k on the CI runner, k=60 0.16 s), and a
+    # tag matching more than TEACH_KNN photos falls back to the full scan (~3.5 s at 100k, Linux).
+    hits = None
+    for k in (TEACH_K0, TEACH_KNN):
+        knn = conn.execute(
+            "WITH knn AS (SELECT rowid, distance FROM vec_clip_b32 WHERE embedding MATCH ? AND k = ?) "
+            "SELECT e.asset_id, 1 - knn.distance, a.is_hidden FROM knn JOIN embeddings e ON e.id = knn.rowid "
+            "JOIN assets a ON a.id = e.asset_id",
+            (vector, k),
+        ).fetchall()
+        if len(knn) < k or min(r[1] for r in knn) < threshold:
+            hits = [(aid, sc) for aid, sc, hidden in knn if sc >= threshold and not hidden]
+            break
+    if hits is None:
         hits = conn.execute(
             "SELECT e.asset_id, 1 - vec_distance_cosine(v.embedding, ?) AS s FROM vec_clip_b32 v "
             "JOIN embeddings e ON e.id = v.rowid JOIN assets a ON a.id = e.asset_id AND a.is_hidden = 0 WHERE s >= ?",
             (vector, threshold),
         ).fetchall()
-    else:
-        hits = [(aid, sc) for aid, sc, hidden in knn if sc >= threshold and not hidden]
     tagged = 0
     for aid, score in hits:
         tagged += conn.execute(

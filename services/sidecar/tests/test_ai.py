@@ -455,7 +455,12 @@ def test_teach_falls_back_to_a_full_scan_when_many_photos_match(tmp_path, monkey
     _photos(src, ("red", "darkred", "blue"))
     _register_all(conn, src)
     _run(lib, conn)
-    monkeypatch.setattr(lib_mod, "TEACH_KNN", 1)  # the nearest-first pass is full: scan everything
+    monkeypatch.setattr(lib_mod, "TEACH_K0", 1)  # k = 1, then 2; both full: scan everything
+    monkeypatch.setattr(lib_mod, "TEACH_KNN", 2)
     with lib_mod.tx(conn):
         out = lib_mod.teach_tag(conn, "reddish", "red", _colour_vec(255, 0, 0), 0.9)
     assert out["photos_tagged"] == 2 and "reddish" not in _tags(conn, "blue.png")
+    monkeypatch.setattr(lib_mod, "TEACH_KNN", 4)  # k = 1 full; k = 4 returns all 3: no scan
+    with lib_mod.tx(conn):
+        out = lib_mod.teach_tag(conn, "red again", "red", _colour_vec(255, 0, 0), 0.9)
+    assert out["photos_tagged"] == 2 and "red again" not in _tags(conn, "blue.png")
