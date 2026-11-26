@@ -1,4 +1,4 @@
-import { useBackups, useJobStats } from "@imagevault/api-client";
+import { useBackups, useDuplicateSummary, useJobStats } from "@imagevault/api-client";
 import { Badge } from "@imagevault/ui";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
@@ -10,6 +10,7 @@ import { num } from "./format";
 import { Assets } from "./screens/Assets";
 import { NeedsRestore } from "./screens/Backup";
 import { Dashboard } from "./screens/Dashboard";
+import { Duplicates } from "./screens/Duplicates";
 import { Processing } from "./screens/Processing";
 import { SearchScreen, SimilarScreen } from "./screens/Search";
 import { Settings } from "./screens/Settings";
@@ -25,6 +26,9 @@ export function App() {
       <nav className="sidebar" aria-label="Main">
         <NavLink to="/dashboard">Dashboard</NavLink>
         <NavLink to="/photos">All photos</NavLink>
+        <NavLink to="/duplicates">
+          Duplicates <DuplicatesBadge />
+        </NavLink>
         <NavLink to="/sources">Sources</NavLink>
         <NavLink to="/processing">
           Processing <QueueBadge />
@@ -44,6 +48,7 @@ export function App() {
             <Route path="/collections/:id" element={<CollectionScreen />} />
             <Route path="/search" element={<SearchScreen />} />
             <Route path="/similar/:id" element={<SimilarScreen />} />
+            <Route path="/duplicates" element={<Duplicates />} />
             <Route path="/sources" element={<Sources />} />
             <Route path="/processing" element={<Processing />} />
             <Route path="/settings" element={<Settings />} />
@@ -88,6 +93,13 @@ function QueueBadge() {
   if (failed) return <Badge tone="danger">{num(failed)}</Badge>;
   const waiting = (jobs.queued ?? 0) + (jobs.running ?? 0);
   return waiting ? <Badge tone="info">{num(waiting)}</Badge> : null;
+}
+
+/** Open duplicate groups (Copies + Similar shots) waiting for a decision (D2). */
+function DuplicatesBadge() {
+  const s = useDuplicateSummary().data;
+  const n = s ? s.copies + s.similar : 0;
+  return n ? <Badge tone="neutral">{num(n)}</Badge> : null;
 }
 
 /** Shown while the live connection to the engine is down (it reconnects by itself). */

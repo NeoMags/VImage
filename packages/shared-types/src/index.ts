@@ -39,6 +39,9 @@ export type AiStatus = S["AiStatus"];
 export type SearchHit = S["SearchHit"];
 export type SearchResults = S["SearchResults"];
 export type TaughtTag = S["TaughtTag"];
+export type DuplicateGroup = S["DuplicateGroup"];
+export type DuplicateMember = S["DuplicateMember"];
+export type DuplicateSummary = S["DuplicateSummary"];
 export type AiOptions = S["AiOptions"];
 
 export type AssetKind = AssetSummary["kind"];

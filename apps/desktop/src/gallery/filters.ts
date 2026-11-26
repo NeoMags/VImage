@@ -132,6 +132,10 @@ export function chipsFor(f: Filters, names: Names): Chip[] {
   if (f.favorite != null) {
     chips.push({ key: "favorite", label: f.favorite ? "Favourites" : "Not favourites", remove: (x) => without(x, "favorite") });
   }
+  if (f.multi_location != null) {
+    const label = f.multi_location ? "In several folders" : "In one folder";
+    chips.push({ key: "multi_location", label, remove: (x) => without(x, "multi_location") });
+  }
   if (f.reviewed != null) {
     chips.push({ key: "reviewed", label: f.reviewed ? "Reviewed" : "Not reviewed", remove: (x) => without(x, "reviewed") });
   }
