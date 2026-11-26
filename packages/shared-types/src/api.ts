@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ai Groups */
+        get: operations["ai_groups_v1_ai_groups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ai:install": {
         parameters: {
             query?: never;
@@ -899,6 +916,8 @@ export interface components {
         };
         /** AssetFacets */
         AssetFacets: {
+            /** Ai Tags */
+            ai_tags: components["schemas"]["FacetTag"][];
             /** Availability */
             availability: components["schemas"]["FacetValue"][];
             /** Collection */
@@ -1131,6 +1150,8 @@ export interface components {
             add_tags?: string[] | null;
             /** Add To Collection */
             add_to_collection?: number | null;
+            /** Confirm Ai Tags */
+            confirm_ai_tags?: boolean | null;
             /** Hide */
             hide?: boolean | null;
             /** Ids */
@@ -1148,6 +1169,8 @@ export interface components {
         BulkResult: {
             /** Added To Collection */
             added_to_collection?: number | null;
+            /** Ai Tags Confirmed */
+            ai_tags_confirmed?: number | null;
             /** Hidden Changed */
             hidden_changed?: number | null;
             /** Photos */
@@ -1826,6 +1849,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_groups_v1_ai_groups_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacetTag"][];
                 };
             };
             /** @description Validation Error */

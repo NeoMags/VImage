@@ -1,6 +1,8 @@
-import { fireEvent, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 
+import { AiGroupsNav } from "../src/ai/AiGroupsNav";
+import { setFilters, useFilters } from "../src/gallery/filters";
 import { AiPanel } from "../src/screens/AiPanel";
 import { renderWith } from "./helpers";
 
@@ -55,5 +57,41 @@ describe("Automatic tags panel", () => {
     for (const r of calls.filter((c) => c.url.endsWith("/v1/settings/ai"))) saved.push(await r.json());
     expect(saved).toContainEqual({ enabled: true, max_tags: 8 });
     expect(saved).toContainEqual({ enabled: false, max_tags: 5 });
+  });
+});
+
+function FilterProbe() {
+  return <output aria-label="filters">{JSON.stringify(useFilters())}</output>;
+}
+
+describe("Sorted by AI", () => {
+  afterEach(() => setFilters({}));
+
+  it("lists AI groups with counts and opens one as a tag filter", async () => {
+    const groups = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: `tag${i + 1}`, count: 100 - i }));
+    renderWith(
+      <>
+        <AiGroupsNav />
+        <FilterProbe />
+      </>,
+      { "GET /v1/ai/groups": () => groups },
+    );
+    const region = await screen.findByRole("region", { name: "Sorted by AI" });
+    expect(await screen.findByRole("link", { name: /tag1\s*100/ })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /tag12/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show all 12" }));
+    expect(screen.getByRole("link", { name: /tag12\s*89/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("link", { name: /tag3\s*98/ }));
+    expect(screen.getByLabelText("filters").textContent).toBe('{"tag":[3]}');
+    expect(region).toBeTruthy();
+  });
+
+  it("stays out of the sidebar until something is tagged", async () => {
+    const { calls } = renderWith(
+      <AiGroupsNav />,
+      { "GET /v1/ai/groups": () => [] },
+    );
+    await waitFor(() => expect(calls.some((r) => r.url.endsWith("/v1/ai/groups"))).toBe(true));
+    expect(screen.queryByRole("region", { name: "Sorted by AI" })).toBeNull();
   });
 });

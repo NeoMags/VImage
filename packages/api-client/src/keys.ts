@@ -16,6 +16,8 @@ export const keys = {
     list: (q: Omit<AssetQuery, "cursor">) => ["assets", q] as const,
     months: (f: AssetFilter) => ["assets", "months", f] as const,
     facets: (f: AssetFilter, tagQ: string) => ["assets", "facets", f, tagQ] as const,
+    /** "Sorted by AI" groups: under "assets" so newly tagged photos refresh them. */
+    aiGroups: ["assets", "aiGroups"] as const,
   },
   asset: {
     all: ["asset"] as const,

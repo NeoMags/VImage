@@ -48,6 +48,9 @@ B8a status (2026-11-25): rows marked **Built** exist. B8b (same day): every erro
 | `GET /ai` | models installed, download progress, on/off, photos tagged/waiting/failed |
 | `POST /ai:install` | download the models in the background (202); switches AI on when done; event `ai.updated`, task progress `ai_models` |
 | `GET/PUT /settings/ai` | `{enabled, max_tags 1–20}`; 409 when enabling before the models are installed |
+| `GET /ai/groups` | T3 "Sorted by AI": the 24 most common AI tags on visible photos `{id, name, count}`; a group is the `tag` filter |
+| `GET /assets:facets` → `ai_tags` | T3: tags only the AI has suggested; `tags` holds yours (from you, a file, or an accepted AI tag). One section per tag; counts cover every origin |
+| `POST /assets:bulk` `confirm_ai_tags: true` | T3: accept every AI tag on the selected photos |
 
 ### Phase D2–D3
 | Method & path | Purpose |

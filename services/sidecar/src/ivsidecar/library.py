@@ -353,15 +353,23 @@ def asset_facets(conn: sqlite3.Connection, tag_q: str | None = None, **filters) 
     has_tags, has_colls = conn.execute(
         "SELECT EXISTS (SELECT 1 FROM asset_tags WHERE rejected = 0), EXISTS (SELECT 1 FROM collection_assets)"
     ).fetchone()
-    tags = (
-        []
-        if not has_tags
-        else conn.execute(
-            f"SELECT t.id, t.name, count(*) FROM assets a JOIN asset_tags x ON x.asset_id = a.id AND x.rejected = 0 "
-            f"JOIN tags t ON t.id = x.tag_id WHERE {w} {tag_sql} GROUP BY t.id ORDER BY count(*) DESC, t.name LIMIT ?",
-            (*tag_args, FACET_TAGS),
-        ).fetchall()
-    )
+    # One pass over the matching photos' tags, driven from the photos (fast with many AI tags).
+    # A tag is "yours" once any photo has it from you, from a file, or as an accepted AI tag
+    # (index asset_tags_mine); until then it is listed under AI tags (T3). Each tag sits in one
+    # section, and its count covers every origin, exactly as the tag filter matches.
+    tags, ai_tags = [], []
+    if has_tags:
+        for i, nm, n, mine in conn.execute(
+            f"SELECT g.tag_id, t.name, g.n, g.mine FROM (SELECT x.tag_id, count(*) AS n, EXISTS (SELECT 1 FROM "
+            f"asset_tags y WHERE y.tag_id = x.tag_id AND y.rejected = 0 AND (y.origin != 'ai' OR y.confirmed_at IS NOT "
+            f"NULL)) AS mine FROM asset_tags x WHERE x.rejected = 0 AND x.asset_id IN (SELECT a.id FROM assets a "
+            f"WHERE {w}) GROUP BY x.tag_id) g JOIN tags t ON t.id = g.tag_id WHERE 1 {tag_sql} "
+            f"ORDER BY g.n DESC, t.name",
+            tag_args,
+        ):
+            rows = tags if mine else ai_tags
+            if len(rows) < FACET_TAGS:
+                rows.append((i, nm, n))
     sw, sa = where("source")
     sources = conn.execute(
         f"SELECT l.source_id, count(DISTINCT a.id) FROM assets a JOIN file_locations l ON l.asset_id = a.id "
@@ -402,6 +410,7 @@ def asset_facets(conn: sqlite3.Connection, tag_q: str | None = None, **filters) 
         "source": [{"id": i, "count": n} for i, n in sources],
         "collection": [{"id": i, "count": n} for i, n in colls],
         "tags": [{"id": i, "name": nm, "count": n} for i, nm, n in tags],
+        "ai_tags": [{"id": i, "name": nm, "count": n} for i, nm, n in ai_tags],
         "favorite": yes_no("favorite"),
         "reviewed": yes_no("reviewed"),
         "date": {"min": d_min[:10] if d_min else None, "max": d_max[:10] if d_max else None},
@@ -900,6 +909,15 @@ def bulk(conn: sqlite3.Connection, ids: list[int], ops: dict) -> dict:
         ]
         remove_tags(conn, ids, tag_ids)
         done["tags_removed"] = len(tag_ids)
+    if ops.get("confirm_ai_tags"):
+        n = 0
+        for marks, chunk in _in(ids):
+            n += conn.execute(
+                f"UPDATE asset_tags SET confirmed_at = {NOW} WHERE origin = 'ai' AND rejected = 0 "
+                f"AND confirmed_at IS NULL AND asset_id IN ({marks})",
+                chunk,
+            ).rowcount
+        done["ai_tags_confirmed"] = n
     if ops.get("add_to_collection") is not None:
         done["added_to_collection"] = add_to_collection(conn, ops["add_to_collection"], ids)
     if ops.get("remove_from_collection") is not None:
@@ -917,3 +935,17 @@ def bulk(conn: sqlite3.Connection, ids: list[int], ops: dict) -> dict:
         raise Invalid("no change requested")
     audit(conn, "bulk", "asset", None, None, {"count": len(ids), "ops": ops})
     return {"photos": len(ids), **done}
+
+
+def ai_groups(conn: sqlite3.Connection, limit: int = 24) -> list[dict]:
+    """ "Sorted by AI" (T3): the most common AI tags on visible photos, as virtual groups.
+    Nothing is moved or copied; a group is the tag filter. Rejected tags never count."""
+    return [
+        {"id": i, "name": nm, "count": n}
+        for i, nm, n in conn.execute(
+            "SELECT g.tag_id, t.name, g.n FROM (SELECT x.tag_id, count(*) AS n FROM asset_tags x "
+            "WHERE x.origin = 'ai' AND x.rejected = 0 AND x.asset_id IN (SELECT a.id FROM assets a WHERE a.is_hidden = 0) "
+            "GROUP BY x.tag_id) g JOIN tags t ON t.id = g.tag_id ORDER BY g.n DESC, t.name LIMIT ?",
+            (limit,),
+        )
+    ]

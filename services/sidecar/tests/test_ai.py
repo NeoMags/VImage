@@ -258,3 +258,54 @@ def test_ai_routes_install_switch_and_status(tmp_path, monkeypatch):
         st = c.get("/v1/ai", headers=AUTH).json()
         assert st["enabled"] is False and st["max_tags"] == 5 and st["photos_waiting"] == 0
         assert c.put("/v1/settings/ai", json={"enabled": True, "max_tags": 50}, headers=AUTH).status_code == 422
+
+
+# --------------------------------------------------------------------------- T3: review and groups
+def test_ai_tags_have_their_own_facet_section_until_accepted(tmp_path):
+    lib, src, conn = _library(tmp_path)
+    settings.save(conn, "ai", settings.AiOptions(enabled=True))
+    _photos(src)
+    _register_all(conn, src)
+    _run(lib, conn)
+    f = lib_mod.asset_facets(conn)
+    assert f["tags"] == []
+    ai = {t["name"]: t["count"] for t in f["ai_tags"]}
+    assert ai == {"object": 3, "red thing": 1, "green thing": 1, "blue thing": 1}
+    # accepting the AI tags on one photo makes them yours everywhere; counts still cover every photo
+    rid = _asset(conn, "red.png")
+    with lib_mod.tx(conn):
+        out = lib_mod.bulk(conn, [rid], {"confirm_ai_tags": True})
+    assert out == {"photos": 1, "ai_tags_confirmed": 2}
+    f = lib_mod.asset_facets(conn)
+    assert {t["name"]: t["count"] for t in f["tags"]} == {"object": 3, "red thing": 1}
+    assert {t["name"] for t in f["ai_tags"]} == {"green thing", "blue thing"}
+    # a removed AI tag leaves both sections and the group
+    with lib_mod.tx(conn):
+        lib_mod.bulk(conn, [_asset(conn, "blue.png")], {"remove_tags": ["blue thing"]})
+    f = lib_mod.asset_facets(conn)
+    assert {t["name"] for t in f["ai_tags"]} == {"green thing"}
+    groups = {g["name"]: g["count"] for g in lib_mod.ai_groups(conn)}
+    assert groups == {"object": 3, "red thing": 1, "green thing": 1}
+
+
+def test_ai_groups_route_and_bulk_accept_route(tmp_path):
+    lib, src, conn = _library(tmp_path)
+    settings.save(conn, "ai", settings.AiOptions(enabled=True))
+    _photos(src, ("red", "blue"))
+    _register_all(conn, src)
+    _run(lib, conn)
+    app = create_app(conn, TOKEN, time.time())
+    with TestClient(app) as c:
+        groups = c.get("/v1/ai/groups", headers=AUTH).json()
+        assert groups[0] == {"id": groups[0]["id"], "name": "object", "count": 2}
+        rid = _asset(conn, "red.png")
+        r = c.post("/v1/assets:bulk", json={"ids": [rid], "confirm_ai_tags": True}, headers=AUTH)
+        assert r.status_code == 200 and r.json() == {"photos": 1, "ai_tags_confirmed": 2}
+        tags = {t["name"]: t for t in c.get(f"/v1/assets/{rid}", headers=AUTH).json()["tags"]}
+        assert tags["red thing"]["origin"] == "ai" and tags["red thing"]["confirmed"] is True
+        # hidden photos do not count in groups
+        c.post(f"/v1/assets/{rid}/hide", headers=AUTH)
+        assert {g["name"]: g["count"] for g in c.get("/v1/ai/groups", headers=AUTH).json()} == {
+            "object": 1,
+            "blue thing": 1,
+        }

@@ -445,6 +445,16 @@ export function useAi() {
   });
 }
 
+/** "Sorted by AI" (T3): the most common AI tags, each a virtual group (the tag filter). */
+export function useAiGroups(enabled = true) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.assets.aiGroups,
+    queryFn: () => unwrap(api.GET("/v1/ai/groups")),
+    enabled,
+  });
+}
+
 export function useInstallAi() {
   const api = useApi();
   const qc = useQueryClient();

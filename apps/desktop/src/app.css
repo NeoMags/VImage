@@ -161,6 +161,7 @@ input[type="checkbox"], input[type="radio"] { height: auto; }
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border: 1px solid var(--iv-border); border-radius: 999px; background: var(--iv-surface-2); font-size: var(--iv-text-sm); }
 .chip button { border: 0; background: none; color: var(--iv-text-muted); cursor: pointer; padding: 0 4px; font: inherit; }
 .chip button:hover { color: var(--iv-danger); }
+.chip-ai { border-style: dashed; background: transparent; }
 .notes { display: flex; flex-direction: column; gap: var(--iv-space-2); margin-bottom: var(--iv-space-2); }
 .note { padding: var(--iv-space-2); border: 1px solid var(--iv-border); border-radius: var(--iv-radius); }
 .note textarea, .detail-section textarea { width: 100%; min-height: 60px; padding: 6px 8px; border: 1px solid var(--iv-border); border-radius: var(--iv-radius); background: var(--iv-surface); color: var(--iv-text); font: inherit; resize: vertical; box-sizing: border-box; }

@@ -622,6 +622,9 @@ function BulkBar({
       <Button size="sm" disabled={busy || !name} onClick={() => go({ remove_tags: [name] }, `Removed tag “${name}”`)}>
         Remove tag
       </Button>
+      <Button size="sm" disabled={busy} title="Keep every AI-suggested tag on the selected photos" onClick={() => go({ confirm_ai_tags: true }, "Accepted the AI tags")}>
+        Accept AI tags
+      </Button>
       <CollectionPicker
         disabled={busy}
         exclude={collectionId}

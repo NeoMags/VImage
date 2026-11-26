@@ -3,6 +3,7 @@ import { Badge } from "@imagevault/ui";
 import { useState } from "react";
 import { NavLink, Navigate, Route, Routes, useParams } from "react-router";
 
+import { AiGroupsNav } from "./ai/AiGroupsNav";
 import { CollectionsNav } from "./collections/CollectionsNav";
 import { useLiveState } from "./engine";
 import { num } from "./format";
@@ -29,6 +30,7 @@ export function App() {
         </NavLink>
         <NavLink to="/settings">Settings</NavLink>
         <CollectionsNav />
+        <AiGroupsNav />
       </nav>
       <main className="content">
         <EngineBanner />

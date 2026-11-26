@@ -66,6 +66,8 @@ class BulkBody(_Model):
     ids: Ids
     add_tags: list[str] | None = Field(default=None, max_length=50)
     remove_tags: list[str] | None = Field(default=None, max_length=50)
+    confirm_ai_tags: bool | None = None
+    """Accept every AI-suggested tag on these photos (T3 review)."""
     add_to_collection: int | None = None
     remove_from_collection: int | None = None
     set_favorite: bool | None = None
@@ -155,7 +157,7 @@ def build_router(conn: sqlite3.Connection, lock: threading.RLock) -> APIRouter:
     def bulk(body: BulkBody) -> S.BulkResult:
         out = run(lib.bulk, body.ids, body.model_dump(exclude={"ids"}, exclude_none=True), write=True)
         bus.asset_updated(*body.ids)
-        if body.add_tags:
+        if body.add_tags or body.remove_tags or body.confirm_ai_tags:
             bus.changed("tags")
         if body.add_to_collection is not None or body.remove_from_collection is not None:
             bus.changed("collections")

@@ -3,6 +3,7 @@
 GET  /v1/ai            status: models installed, download progress, switch, how far tagging is
 POST /v1/ai:install    download the models (about 0.9 GB) in the background; switches AI on when done
 PUT  /v1/settings/ai   {enabled, max_tags}; switching on queues every photo, off drops queued AI jobs
+GET  /v1/ai/groups     "Sorted by AI": the most common AI tags, as virtual groups (T3)
 """
 
 from __future__ import annotations
@@ -102,6 +103,11 @@ def build_router(conn: sqlite3.Connection, db_lock: threading.RLock, queue: JobQ
                 dl.thread = threading.Thread(target=run_download, daemon=True, name="iv-ai-download")
                 dl.thread.start()
         return status()
+
+    @r.get("/ai/groups")
+    def ai_groups() -> list[S.FacetTag]:
+        with db_lock:
+            return lib.ai_groups(conn)
 
     @r.get("/settings/ai")
     def get_ai_settings() -> settings.AiOptions:
