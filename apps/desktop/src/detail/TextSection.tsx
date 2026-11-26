@@ -13,7 +13,7 @@ const STATE_LABEL = {
   failed: "Could not read the text.",
 } as const;
 
-export function TextSection({ id }: { id: number }) {
+export function TextSection({ id, line, onLine }: { id: number; line?: number | null; onLine?: (n: number | null) => void }) {
   const text = useAssetText(id);
   const edits = useAssetTextEdits(id);
   const [draft, setDraft] = useState<string | null>(null);
@@ -51,7 +51,22 @@ export function TextSection({ id }: { id: number }) {
         </form>
       ) : (
         <>
-          {t && t.text ? (
+          {t && t.text && t.origin === "ai" && t.lines.length && onLine ? (
+            <ol className="small ocr-text ocr-lines" aria-label="Lines of text (click to show on the picture)">
+              {t.lines.map((l) => (
+                <li key={l.line_no}>
+                  <button
+                    type="button"
+                    aria-pressed={line === l.line_no}
+                    className={line === l.line_no ? "on" : undefined}
+                    onClick={() => onLine(line === l.line_no ? null : l.line_no)}
+                  >
+                    {l.text}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          ) : t && t.text ? (
             <p className="pre small ocr-text">{t.text}</p>
           ) : t && t.state !== "done" ? (
             <p className="muted small">

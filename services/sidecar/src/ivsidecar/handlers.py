@@ -550,11 +550,14 @@ def store_ocr(conn: sqlite3.Connection, asset_id: int, d: dict) -> str | None:
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [(tid, i, ln["text"], ln["x"], ln["y"], ln["w"], ln["h"], ln.get("confidence")) for i, ln in enumerate(lines)],
     )
+    from .cards import refresh_card
     from .entities import classify, refresh_entities
 
     refresh_entities(conn, asset_id)  # from your text when you edited it, else from these lines
     classify(conn, asset_id)
     if yours:
+        refresh_card(conn, asset_id)
         return "kept your edited text"
     set_search_text(conn, asset_id, full)
+    refresh_card(conn, asset_id)
     return None if lines else "no text"

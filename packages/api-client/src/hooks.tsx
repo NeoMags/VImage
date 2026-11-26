@@ -593,3 +593,33 @@ export function useAssetTextEdits(id: number) {
     }),
   };
 }
+
+// ------------------------------------------------------------------ Knowledge Cards (K5)
+export function useAssetCard(id: number | null) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.asset.card(id ?? 0),
+    queryFn: () => unwrap(api.GET("/v1/assets/{asset_id}/card", { params: { path: { asset_id: id ?? 0 } } })),
+    enabled: id !== null,
+  });
+}
+
+/** Edit the card (it becomes yours), go back to the AI card, or fetch it as Markdown. */
+export function useCardEdits(id: number) {
+  const api = useApi();
+  const qc = useQueryClient();
+  const path = { params: { path: { asset_id: id } } };
+  const done = (data: unknown) => qc.setQueryData(keys.asset.card(id), data);
+  return {
+    edit: useMutation({
+      mutationFn: (body: { title?: string; summary?: string }) =>
+        unwrap(api.PATCH("/v1/assets/{asset_id}/card", { ...path, body })),
+      onSuccess: done,
+    }),
+    reset: useMutation({
+      mutationFn: () => unwrap(api.DELETE("/v1/assets/{asset_id}/card/edit", path)),
+      onSuccess: done,
+    }),
+    markdown: () => unwrap(api.GET("/v1/assets/{asset_id}/card:markdown", path)),
+  };
+}

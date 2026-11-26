@@ -293,6 +293,9 @@ def set_type(conn: sqlite3.Connection, asset_id: int, slug: str | None) -> None:
             "SELECT ?, id, 'user' FROM categories WHERE domain = 'source_type' AND slug = ?",
             (asset_id, slug),
         )
+    from .cards import refresh_card
+
+    refresh_card(conn, asset_id)  # the summary names the type
     audit(conn, "type.set", "asset", asset_id, None, {"type": slug})
 
 

@@ -3,6 +3,7 @@ import {
   ApiError,
   keys,
   useAsset,
+  useAssetText,
   useAssetEdits,
   useAssetPreview,
   useCollections,
@@ -20,6 +21,7 @@ import { EmptyState, ErrorView, errorText, LoadingRows } from "../components/Sta
 import { ago, bytes } from "../format";
 import { useThumbUrl } from "../gallery/thumbs";
 import { revealInExplorer } from "../native";
+import { CardSection } from "./CardSection";
 import { TextSection } from "./TextSection";
 
 export interface DetailProps {
@@ -88,14 +90,18 @@ export function AssetDetail({ id, full, onToggleFull, onClose, onStep }: DetailP
 }
 
 function Body({ a, full }: { a: Detail; full: boolean }) {
+  const [line, setLine] = useState<number | null>(null); // K5: OCR line shown boxed on the preview
+  useEffect(() => setLine(null), [a.id]);
+  const hasText = a.kind === "image" || a.kind === "screenshot";
   return (
     <div className={full ? "detail-body two-col" : "detail-body"}>
-      <Preview a={a} />
+      <Preview a={a} line={line} />
       <div className="detail-info">
         <TitleRow a={a} />
+        {hasText ? <CardSection id={a.id} /> : null}
         <FromFile a={a} />
         <Yours a={a} />
-        {a.kind === "image" || a.kind === "screenshot" ? <TextSection id={a.id} /> : null}
+        {hasText ? <TextSection id={a.id} line={line} onLine={setLine} /> : null}
         <Locations a={a} />
         <Processing a={a} />
       </div>
@@ -104,10 +110,23 @@ function Body({ a, full }: { a: Detail; full: boolean }) {
 }
 
 // ---------------------------------------------------------------------------------- preview
-function Preview({ a }: { a: Detail }) {
+function Preview({ a, line }: { a: Detail; line: number | null }) {
   const thumbUrl = useThumbUrl();
   const canPreview = a.kind === "image" || a.kind === "screenshot";
   const preview = useAssetPreview(canPreview ? a.id : null);
+  const text = useAssetText(canPreview && line !== null ? a.id : null);
+  const box = line === null ? undefined : text.data?.lines.find((l) => l.line_no === line);
+  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    if (!img) return;
+    const ro = new ResizeObserver(() => redraw((n) => n + 1));
+    ro.observe(img);
+    return () => ro.disconnect();
+  }, [img]);
+  useEffect(() => {
+    if (box && img) img.parentElement?.querySelector(".ocr-box")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [box, img]);
   const [zoom, setZoom] = useState(false);
   const small = a.derivatives.find((d) => d.kind === "thumb_512") ?? a.derivatives.find((d) => d.kind === "thumb_256");
   const src = thumbUrl(preview.data?.rel_path ?? small?.rel_path ?? null);
@@ -118,7 +137,23 @@ function Preview({ a }: { a: Detail }) {
         onClick={() => preview.data && setZoom(!zoom)}
         title={preview.data ? (zoom ? "Fit to panel" : "Actual size of the preview") : undefined}
       >
-        {src ? <img src={src} alt={a.title.value ?? a.file_name ?? ""} draggable={false} /> : <span className="muted">No preview</span>}
+        {src ? (
+          <img ref={setImg} src={src} alt={a.title.value ?? a.file_name ?? ""} draggable={false} onLoad={() => redraw((n) => n + 1)} />
+        ) : (
+          <span className="muted">No preview</span>
+        )}
+        {box && img && img.clientWidth ? (
+          <span
+            className="ocr-box"
+            aria-hidden="true"
+            style={{
+              left: img.offsetLeft + box.x * img.clientWidth - 3,
+              top: img.offsetTop + box.y * img.clientHeight - 3,
+              width: box.w * img.clientWidth + 6,
+              height: box.h * img.clientHeight + 6,
+            }}
+          />
+        ) : null}
       </div>
       <figcaption className="muted small" aria-live="polite">
         {!canPreview

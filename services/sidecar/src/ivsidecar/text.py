@@ -10,6 +10,7 @@ from __future__ import annotations
 import sqlite3
 
 from . import handlers
+from .cards import refresh_card
 from .entities import get_type, list_entities, refresh_entities
 from .library import Invalid, NotFound, _exists, audit
 
@@ -87,6 +88,7 @@ def set_text(conn: sqlite3.Connection, asset_id: int, text: str) -> None:
         )
     handlers.set_search_text(conn, asset_id, text)
     refresh_entities(conn, asset_id)
+    refresh_card(conn, asset_id)
     audit(conn, "text.edit", "asset", asset_id, {"len": len(before or "")}, {"len": len(text)})
 
 
@@ -104,6 +106,7 @@ def revert_text(conn: sqlite3.Connection, asset_id: int) -> None:
         conn.execute("UPDATE extracted_text SET is_current = 1 WHERE id = ?", (ai[0],))
     handlers.set_search_text(conn, asset_id, ai[1] if ai else "")
     refresh_entities(conn, asset_id)
+    refresh_card(conn, asset_id)
     audit(conn, "text.revert", "asset", asset_id)
 
 

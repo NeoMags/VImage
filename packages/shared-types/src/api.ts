@@ -148,6 +148,64 @@ export interface paths {
         patch: operations["patch_v1_assets__asset_id__patch"];
         trace?: never;
     };
+    "/v1/assets/{asset_id}/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Card */
+        get: operations["get_card_v1_assets__asset_id__card_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit Card
+         * @description Your title and/or summary; the card is then yours and never regenerated.
+         */
+        patch: operations["edit_card_v1_assets__asset_id__card_patch"];
+        trace?: never;
+    };
+    "/v1/assets/{asset_id}/card/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Reset Card
+         * @description Back to the AI-generated card, made from the text again.
+         */
+        delete: operations["reset_card_v1_assets__asset_id__card_edit_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assets/{asset_id}/card:markdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Card Markdown */
+        get: operations["card_markdown_v1_assets__asset_id__card_markdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assets/{asset_id}/hide": {
         parameters: {
             query?: never;
@@ -1068,6 +1126,10 @@ export interface components {
             /** Photos With Ai Tags */
             photos_with_ai_tags: number;
         };
+        /** AssetCard */
+        AssetCard: {
+            card: components["schemas"]["KnowledgeCard"] | null;
+        };
         /** AssetDetail */
         AssetDetail: {
             /**
@@ -1438,6 +1500,20 @@ export interface components {
             /** Tags Removed */
             tags_removed?: number | null;
         };
+        /** CardBody */
+        CardBody: {
+            /** Summary */
+            summary?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** CardMarkdown */
+        CardMarkdown: {
+            /** File Name */
+            file_name: string;
+            /** Markdown */
+            markdown: string;
+        };
         /** Collection */
         Collection: {
             /** Count */
@@ -1687,6 +1763,19 @@ export interface components {
                 [key: string]: number;
             };
             queue: components["schemas"]["QueueRuntime"] | null;
+        };
+        /** KnowledgeCard */
+        KnowledgeCard: {
+            /** Created At */
+            created_at: string;
+            /** Edited */
+            edited: boolean;
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string;
         };
         /** LibraryStats */
         LibraryStats: {
@@ -2584,6 +2673,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssetDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_card_v1_assets__asset_id__card_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetCard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_card_v1_assets__asset_id__card_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetCard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_card_v1_assets__asset_id__card_edit_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetCard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    card_markdown_v1_assets__asset_id__card_markdown_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                asset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardMarkdown"];
                 };
             };
             /** @description Validation Error */

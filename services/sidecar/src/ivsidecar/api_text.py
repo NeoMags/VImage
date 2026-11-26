@@ -8,6 +8,9 @@ PUT    /v1/assets/{id}/text             {text}: your version; later OCR runs kee
 DELETE /v1/assets/{id}/text/edit        drop your edit, use the read text again
 POST   /v1/assets/{id}/text:rerun       read this photo again now
 PUT    /v1/assets/{id}/type             {type}: screenshot / scan / photo as you say (K3)
+GET    /v1/assets/{id}/card             Knowledge Card (K5); PATCH {title, summary} makes it yours
+DELETE /v1/assets/{id}/card/edit        back to the AI-generated card
+GET    /v1/assets/{id}/card:markdown    the card as a Markdown file
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import entities, handlers, settings
+from . import cards, entities, handlers, settings
 from . import library as lib
 from . import schemas as S
 from . import text as T
@@ -31,6 +34,12 @@ class TypeBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["screenshot", "scan", "photo"] | None
     """None: let ImageVault decide again."""
+
+
+class CardBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str | None = Field(None, min_length=1, max_length=200)
+    summary: str | None = Field(None, max_length=2000)
 
 
 class TextBody(BaseModel):
@@ -112,6 +121,27 @@ def build_router(conn: sqlite3.Connection, db_lock: threading.RLock, queue: JobQ
         """Screenshot, scan or photo, as you say; null hands it back to ImageVault."""
         run(entities.set_type, asset_id, body.type, write=True, asset=asset_id)
         return run(T.get_text, asset_id)
+
+    # ------------------------------------------------------------------ Knowledge Cards (K5)
+    @r.get("/assets/{asset_id}/card")
+    def get_card(asset_id: int) -> S.AssetCard:
+        return run(cards.get_card, asset_id)
+
+    @r.patch("/assets/{asset_id}/card")
+    def edit_card(asset_id: int, body: CardBody) -> S.AssetCard:
+        """Your title and/or summary; the card is then yours and never regenerated."""
+        run(cards.edit_card, asset_id, body.title, body.summary, write=True, asset=asset_id)
+        return run(cards.get_card, asset_id)
+
+    @r.delete("/assets/{asset_id}/card/edit")
+    def reset_card(asset_id: int) -> S.AssetCard:
+        """Back to the AI-generated card, made from the text again."""
+        run(cards.reset_card, asset_id, write=True, asset=asset_id)
+        return run(cards.get_card, asset_id)
+
+    @r.get("/assets/{asset_id}/card:markdown")
+    def card_markdown(asset_id: int) -> S.CardMarkdown:
+        return run(cards.markdown, asset_id)
 
     @r.post("/assets/{asset_id}/text:rerun", status_code=202)
     def rerun(asset_id: int) -> S.AssetText:

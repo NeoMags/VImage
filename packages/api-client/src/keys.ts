@@ -24,6 +24,8 @@ export const keys = {
     one: (id: number) => ["asset", id] as const,
     /** K2: under the photo's key, so asset.updated (OCR finished, text edited) refreshes it. */
     text: (id: number) => ["asset", id, "text"] as const,
+    /** K5: under the photo's key, so asset.updated refreshes it. */
+    card: (id: number) => ["asset", id, "card"] as const,
     preview: (id: number) => ["preview", id] as const, // not under "asset": live events must not re-request it
   },
   tags: ["tags"] as const,

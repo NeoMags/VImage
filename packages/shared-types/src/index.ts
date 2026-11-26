@@ -43,6 +43,7 @@ export type AiOptions = S["AiOptions"];
 export type AssetText = S["AssetText"];
 export type TextEntity = S["TextEntity"];
 export type OcrStatus = S["OcrStatus"];
+export type KnowledgeCard = S["KnowledgeCard"];
 
 export type AssetKind = AssetSummary["kind"];
 export type AssetStatus = AssetSummary["status"];

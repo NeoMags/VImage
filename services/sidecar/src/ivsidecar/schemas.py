@@ -614,6 +614,25 @@ class AssetText(Out):
     """Screenshot, scan or photo (K3); None when it cannot be told."""
 
 
+class KnowledgeCard(Out):
+    title: str
+    summary: str
+    edited: bool
+    """False: AI-generated, follows the text. True: yours, never regenerated."""
+    created_at: str
+    updated_at: str
+
+
+class AssetCard(Out):
+    card: KnowledgeCard | None
+    """None when the photo has no text."""
+
+
+class CardMarkdown(Out):
+    file_name: str
+    markdown: str
+
+
 class OcrStatus(Out):
     enabled: bool
     photos_done: int
