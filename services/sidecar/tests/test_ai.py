@@ -350,7 +350,8 @@ def test_search_by_description_and_similar_photos(tmp_path, monkeypatch):
         assert c.post("/v1/search", json={"text": ""}, headers=AUTH).status_code == 422
 
 
-def test_similar_waits_for_analysis_and_search_needs_models(tmp_path):
+def test_similar_waits_for_analysis_and_search_needs_models(tmp_path, monkeypatch):
+    monkeypatch.delenv("IV_MODELS_DIR", raising=False)  # CI has the real models there
     lib, src, conn = _library(tmp_path)
     _photos(src, ("red",))
     _register_all(conn, src)
