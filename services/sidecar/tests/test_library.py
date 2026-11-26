@@ -523,6 +523,27 @@ def test_100k_list_and_detail_timings(api):
     assert f["ai_tags"] and not f["tags"] and len(g) == 24
     assert ai_ms < (1000 if os.name == "nt" else 500) and groups_ms < 500  # measured 359 / 187 ms on Linux
 
+    # T4: "More like this" over a CLIP vector for every photo (exact nearest neighbours).
+    import numpy as np
+
+    rng = np.random.default_rng(1)
+    with lib.tx(conn):
+        model = handlers._clip_model_id(conn)
+        conn.executemany(
+            "INSERT INTO embeddings (id, asset_id, model_id) VALUES (?, ?, ?)", ((a, a, model) for a in range(1, n + 1))
+        )
+        for start in range(1, n + 1, 5000):
+            vecs = rng.standard_normal((min(5000, n + 1 - start), 512)).astype(np.float32)
+            vecs /= np.linalg.norm(vecs, axis=1, keepdims=True)
+            conn.executemany(
+                "INSERT INTO vec_clip_b32 (rowid, embedding) VALUES (?, ?)",
+                ((start + i, v.tobytes()) for i, v in enumerate(vecs)),
+            )
+    sim_ms, sim = timed(lambda: _get(client, f"/v1/assets/{n // 2}/similar", limit=60), reps=3)
+    print(f"similar photos over {n} vectors: {sim_ms:.1f} ms")
+    assert len(sim["items"]) == 60 and sim["photos_analysed"] == n
+    assert sim_ms < (600 if os.name == "nt" else 300)  # T4 plan budget: 300 ms at 100k
+
 
 def test_cursor_is_opaque_but_tamper_safe(api):
     conn, client = api

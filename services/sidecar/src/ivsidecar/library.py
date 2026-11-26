@@ -949,3 +949,32 @@ def ai_groups(conn: sqlite3.Connection, limit: int = 24) -> list[dict]:
             (limit,),
         )
     ]
+
+
+def search_by_vector(
+    conn: sqlite3.Connection, vector: bytes, limit: int = 60, exclude: int | None = None
+) -> list[dict]:
+    """T4: the visible photos whose CLIP vector is nearest `vector` (float32 bytes), best first,
+    with score = cosine similarity. Exact nearest neighbours (sqlite-vec scans every vector)."""
+    k = min(4096, limit * 2 + 10)  # extra room for hidden photos and `exclude`
+    rows = conn.execute(
+        f"WITH knn AS (SELECT rowid, distance FROM vec_clip_b32 WHERE embedding MATCH ? AND k = ?) "
+        f"SELECT {LIST_COLS}, knn.distance FROM knn JOIN embeddings e ON e.id = knn.rowid "
+        f"JOIN assets a ON a.id = e.asset_id WHERE a.is_hidden = 0 AND a.id IS NOT ? ORDER BY knn.distance LIMIT ?",
+        (vector, k, exclude, limit),
+    ).fetchall()
+    return [{**_row(LIST_KEYS, r[:-1]), "score": round(1 - r[-1], 4)} for r in rows]
+
+
+def asset_vector(conn: sqlite3.Connection, asset_id: int) -> bytes | None:
+    """The photo's stored CLIP vector, or None while it has not been analysed."""
+    _exists(conn, "assets", asset_id, "photo")
+    row = conn.execute(
+        "SELECT v.embedding FROM embeddings e JOIN vec_clip_b32 v ON v.rowid = e.id WHERE e.asset_id = ? LIMIT 1",
+        (asset_id,),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def analysed_count(conn: sqlite3.Connection) -> int:
+    return conn.execute("SELECT count(*) FROM embeddings").fetchone()[0]

@@ -15,7 +15,8 @@ import pytest
 from PIL import Image
 
 from ivsidecar import ai_models
-from ivsidecar.stages.ai import ClipImage, RamTagger
+from ivsidecar.stages.ai import ClipImage, ClipText, RamTagger
+from ivsidecar.stages.clip_tokenizer import ClipTokenizer
 
 MODELS = Path(os.environ.get("IV_MODELS_DIR", "/nonexistent"))
 PHOTO = Path(os.environ.get("IV_TEST_PHOTO", "/nonexistent"))
@@ -50,3 +51,18 @@ def test_clip_embedding_is_stable_and_separates_unlike_images(photo):
     assert float(a @ clip.embed(photo.transpose(Image.Transpose.FLIP_LEFT_RIGHT))) > 0.9  # same scene, mirrored
     other = Image.new("RGB", (512, 384), (20, 90, 200))  # a flat blue picture
     assert float(a @ clip.embed(other)) < 0.8
+
+
+def test_tokenizer_matches_clip_ids():
+    tok = ClipTokenizer(MODELS / "clip" / "tokenizer.json")
+    assert tok.encode("a photo of a cat") == [49406, 320, 1125, 539, 320, 2368, 49407]
+
+
+def test_search_text_finds_the_cats(photo):
+    """T4: a description lands near the photo it describes, in the same space as ClipImage."""
+    img = ClipImage(MODELS, threads=2).embed(photo)
+    text = ClipText(MODELS, threads=2)
+    cats, car, beach = (
+        float(img @ text.embed(t)) for t in ("two cats on a couch", "a red sports car", "a sunny beach")
+    )
+    assert cats > car + 0.02 and cats > beach + 0.02, (cats, car, beach)

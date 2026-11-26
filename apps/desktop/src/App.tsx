@@ -1,7 +1,7 @@
 import { useBackups, useJobStats } from "@imagevault/api-client";
 import { Badge } from "@imagevault/ui";
-import { useState } from "react";
-import { NavLink, Navigate, Route, Routes, useParams } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { AiGroupsNav } from "./ai/AiGroupsNav";
 import { CollectionsNav } from "./collections/CollectionsNav";
@@ -11,6 +11,7 @@ import { Assets } from "./screens/Assets";
 import { NeedsRestore } from "./screens/Backup";
 import { Dashboard } from "./screens/Dashboard";
 import { Processing } from "./screens/Processing";
+import { SearchScreen, SimilarScreen } from "./screens/Search";
 import { Settings } from "./screens/Settings";
 import { Sources } from "./screens/Sources";
 
@@ -41,6 +42,8 @@ export function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/photos" element={<Assets />} />
             <Route path="/collections/:id" element={<CollectionScreen />} />
+            <Route path="/search" element={<SearchScreen />} />
+            <Route path="/similar/:id" element={<SimilarScreen />} />
             <Route path="/sources" element={<Sources />} />
             <Route path="/processing" element={<Processing />} />
             <Route path="/settings" element={<Settings />} />
@@ -66,6 +69,7 @@ function Header() {
   return (
     <header className="header">
       <span className="brand">ImageVault</span>
+      <SearchBox />
       <span className="spacer" />
       {jobs ? (
         <span className="muted small" aria-live="polite">
@@ -94,5 +98,50 @@ function EngineBanner() {
     <div className="banner" role="status">
       Reconnecting to the ImageVault engine… Changes will show again in a moment.
     </div>
+  );
+}
+
+/** Search by description (T4). Ctrl+K (or /) jumps here from anywhere; Enter shows the results. */
+export function SearchBox() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [params] = useSearchParams();
+  const current = pathname === "/search" ? (params.get("q") ?? "") : "";
+  const [text, setText] = useState(current);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => setText(current), [current]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable);
+      if ((e.key === "k" && (e.ctrlKey || e.metaKey)) || (e.key === "/" && !typing)) {
+        e.preventDefault();
+        input.current?.focus();
+        input.current?.select();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  return (
+    <form
+      className="search-box"
+      role="search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const q = text.trim();
+        if (q) navigate(`/search?q=${encodeURIComponent(q)}`);
+      }}
+    >
+      <input
+        ref={input}
+        type="search"
+        aria-label="Search photos by description"
+        placeholder="Search photos… (Ctrl+K)"
+        maxLength={300}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.key === "Escape" && input.current?.blur()}
+      />
+    </form>
   );
 }

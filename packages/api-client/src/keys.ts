@@ -33,6 +33,11 @@ export const keys = {
     ai: ["settings", "ai"] as const,
   },
   ai: ["ai"] as const,
+  /** T4. Not refreshed by live events: re-running a search while photos are tagged would churn. */
+  search: {
+    text: (text: string, limit: number) => ["search", "text", text, limit] as const,
+    similar: (id: number, limit: number) => ["search", "similar", id, limit] as const,
+  },
   backups: ["backups"] as const,
   /** Progress of a long request, written by live events (never fetched). */
   task: (name: string) => ["task", name] as const,
