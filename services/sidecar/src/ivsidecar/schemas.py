@@ -66,6 +66,25 @@ class SearchResults(Out):
     """Photos with a search vector so far; the others cannot be found by description yet."""
 
 
+class TeachResult(Out):
+    tag_id: int
+    name: str
+    photos_tagged: int
+
+
+class TaughtTag(Out):
+    tag_id: int
+    name: str
+    prompt: str
+    threshold: float
+    photos: int
+    created_at: str
+
+
+class Untaught(Out):
+    photos_untagged: int
+
+
 class AssetPage(Out):
     items: list[AssetSummary]
     next_cursor: str | None

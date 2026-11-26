@@ -1,12 +1,13 @@
 // Search by description and "More like this" (T4). Results come from CLIP on this PC, best
 // match first. Clicking a photo opens its details; the arrows step through the results.
-import { ApiError, useAi, useSearch, useSimilar } from "@imagevault/api-client";
+import { ApiError, useAi, useSearch, useSimilar, useTeachTag } from "@imagevault/api-client";
+import { Button } from "@imagevault/ui";
 import type { SearchResults } from "@imagevault/shared-types";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 
-import { EmptyState, ErrorView, LoadingRows } from "../components/States";
+import { EmptyState, ErrorView, errorText, LoadingRows } from "../components/States";
 import { AssetDetail } from "../detail/AssetDetail";
 import { num } from "../format";
 import { useThumbUrl } from "../gallery/thumbs";
@@ -18,7 +19,7 @@ export function SearchScreen() {
   const res = useSearch(q);
   if (!q.trim()) return <EmptyState title="Search your photos">Type what you are looking for in the search box above, for example “dog on a beach”.</EmptyState>;
   if (ai.data && !ai.data.installed) return <NeedsModels />;
-  return <Results title={`“${q.trim()}”`} res={res} />;
+  return <Results key={q.trim()} title={`“${q.trim()}”`} res={res} prompt={q.trim()} />;
 }
 
 export function SimilarScreen() {
@@ -36,8 +37,20 @@ function NeedsModels() {
   );
 }
 
-function Results({ title, res, source }: { title: string; res: UseQueryResult<SearchResults>; source?: number }) {
+function Results({
+  title,
+  res,
+  source,
+  prompt,
+}: {
+  title: string;
+  res: UseQueryResult<SearchResults>;
+  source?: number;
+  /** Set on a search by description: offers "Teach a tag" (T5). */
+  prompt?: string;
+}) {
   const thumb = useThumbUrl();
+  const [keep, setKeep] = useState<number | null>(null); // teaching: how many of the best matches count
   const [openId, setOpenId] = useState<number | null>(null);
   const [full, setFull] = useState(false);
   const items = res.data?.items ?? [];
@@ -79,7 +92,7 @@ function Results({ title, res, source }: { title: string; res: UseQueryResult<Se
             <li key={h.id}>
               <button
                 type="button"
-                className={h.id === openId ? "selected" : undefined}
+                className={[h.id === openId ? "selected" : "", keep != null && i >= keep ? "dimmed" : ""].join(" ").trim() || undefined}
                 aria-label={`${h.file_name ?? h.uid}, match ${i + 1}`}
                 title={h.file_name ?? undefined}
                 onClick={() => setOpenId(h.id)}
@@ -106,6 +119,7 @@ function Results({ title, res, source }: { title: string; res: UseQueryResult<Se
           Searched {num(res.data.photos_analysed)} analysed photos. Photos still waiting for automatic tags are not included yet.
         </p>
       ) : null}
+      {prompt && items.length ? <TeachBar prompt={prompt} items={items} keep={keep} onKeep={setKeep} /> : null}
       <div className="gallery-wrap">
         <div className="search-scroll">{body}</div>
         {openId !== null ? (
@@ -113,5 +127,71 @@ function Results({ title, res, source }: { title: string; res: UseQueryResult<Se
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** T5: name this search and tag its best N matches; new photos that match as well get the tag. */
+function TeachBar({
+  prompt,
+  items,
+  keep,
+  onKeep,
+}: {
+  prompt: string;
+  items: SearchResults["items"];
+  keep: number | null;
+  onKeep: (n: number | null) => void;
+}) {
+  const teach = useTeachTag();
+  const [name, setName] = useState(prompt.slice(0, 100));
+  if (keep == null)
+    return (
+      <div className="teach-bar">
+        <Button size="sm" onClick={() => onKeep(Math.min(12, items.length))}>
+          Teach a tag from this search…
+        </Button>
+      </div>
+    );
+  const n = Math.min(Math.max(1, keep), items.length);
+  const threshold = items[n - 1]!.score;
+  return (
+    <form
+      className="teach-bar"
+      aria-label="Teach a tag"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim()) teach.mutate({ name: name.trim(), prompt, threshold });
+      }}
+    >
+      <label className="field-inline">
+        Tag
+        <input className="inline-input" aria-label="Tag name" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label className="field-inline">
+        on the best
+        <input
+          type="number"
+          aria-label="How many of the best matches"
+          min={1}
+          max={items.length}
+          value={n}
+          onChange={(e) => onKeep(Number(e.target.value) || 1)}
+        />
+        matches
+      </label>
+      <Button size="sm" variant="primary" type="submit" disabled={teach.isPending || !name.trim()}>
+        Teach
+      </Button>
+      <Button size="sm" type="button" onClick={() => (teach.reset(), onKeep(null))}>
+        Cancel
+      </Button>
+      <p className="muted small" role="status">
+        {teach.isSuccess
+          ? `Tagged ${num(teach.data.photos_tagged)} photos “${teach.data.name}”. New photos that match get it too. Undo in Settings → Automatic tags.`
+          : teach.isError
+            ? errorText(teach.error)
+            : `Every photo that matches at least as well as match ${n} gets the tag (as an AI tag you can review), now and as new photos arrive.`}
+      </p>
+    </form>
   );
 }

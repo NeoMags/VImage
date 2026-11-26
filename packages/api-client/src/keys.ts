@@ -33,6 +33,8 @@ export const keys = {
     ai: ["settings", "ai"] as const,
   },
   ai: ["ai"] as const,
+  /** Under "ai" so the ai.updated event refreshes it too. */
+  aiTaught: ["ai", "taught"] as const,
   /** T4. Not refreshed by live events: re-running a search while photos are tagged would churn. */
   search: {
     text: (text: string, limit: number) => ["search", "text", text, limit] as const,

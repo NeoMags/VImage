@@ -978,3 +978,81 @@ def asset_vector(conn: sqlite3.Connection, asset_id: int) -> bytes | None:
 
 def analysed_count(conn: sqlite3.Connection) -> int:
     return conn.execute("SELECT count(*) FROM embeddings").fetchone()[0]
+
+
+TEACH_K0 = 256  # first nearest-neighbour pass when teaching a tag
+TEACH_KNN = 4096  # largest pass; beyond it, a full scan
+
+
+def teach_tag(conn: sqlite3.Connection, name: str, prompt: str, vector: bytes, threshold: float) -> dict:
+    """T5: remember a taught tag and give it to every visible photo scoring >= threshold (AI tags,
+    so they can be reviewed like any other). Teaching an existing taught tag again replaces it."""
+    (tag_id,) = get_or_create_tags(conn, [name])
+    conn.execute(
+        "INSERT INTO taught_tags (tag_id, prompt, vector, threshold) VALUES (?, ?, ?, ?) ON CONFLICT (tag_id) "
+        "DO UPDATE SET prompt = excluded.prompt, vector = excluded.vector, threshold = excluded.threshold",
+        (tag_id, prompt, vector, threshold),
+    )
+    # Nearest neighbours first: k = TEACH_K0, and if every one passes, k = TEACH_KNN. Teaching from
+    # the UI keeps the best N of <= 200 search results, so the small pass is the usual case.
+    # Large k is slow on Windows (k=4096 took 3.3 s at 100k on the CI runner, k=60 0.16 s), and a
+    # tag matching more than TEACH_KNN photos falls back to the full scan (~3.5 s at 100k, Linux).
+    hits = None
+    for k in (TEACH_K0, TEACH_KNN):
+        knn = conn.execute(
+            "WITH knn AS (SELECT rowid, distance FROM vec_clip_b32 WHERE embedding MATCH ? AND k = ?) "
+            "SELECT e.asset_id, 1 - knn.distance, a.is_hidden FROM knn JOIN embeddings e ON e.id = knn.rowid "
+            "JOIN assets a ON a.id = e.asset_id",
+            (vector, k),
+        ).fetchall()
+        if len(knn) < k or min(r[1] for r in knn) < threshold:
+            hits = [(aid, sc) for aid, sc, hidden in knn if sc >= threshold and not hidden]
+            break
+    if hits is None:
+        hits = conn.execute(
+            "SELECT e.asset_id, 1 - vec_distance_cosine(v.embedding, ?) AS s FROM vec_clip_b32 v "
+            "JOIN embeddings e ON e.id = v.rowid JOIN assets a ON a.id = e.asset_id AND a.is_hidden = 0 WHERE s >= ?",
+            (vector, threshold),
+        ).fetchall()
+    tagged = 0
+    for aid, score in hits:
+        tagged += conn.execute(
+            "INSERT INTO asset_tags (asset_id, tag_id, origin, confidence) VALUES (?, ?, 'ai', ?) "
+            "ON CONFLICT (asset_id, tag_id) DO NOTHING",
+            (aid, tag_id, round(score, 4)),
+        ).rowcount
+    from .handlers import refresh_fts
+
+    refresh_fts(conn, [aid for aid, _ in hits])
+    audit(conn, "teach_tag", "tag", tag_id, None, {"prompt": prompt, "threshold": threshold, "tagged": tagged})
+    return {"tag_id": tag_id, "name": name, "photos_tagged": tagged}
+
+
+def list_taught(conn: sqlite3.Connection) -> list[dict]:
+    return [
+        {"tag_id": i, "name": nm, "prompt": p, "threshold": round(th, 4), "photos": n, "created_at": c}
+        for i, nm, p, th, n, c in conn.execute(
+            "SELECT t.tag_id, g.name, t.prompt, t.threshold, (SELECT count(*) FROM asset_tags x WHERE x.tag_id = t.tag_id "
+            "AND x.rejected = 0), t.created_at FROM taught_tags t JOIN tags g ON g.id = t.tag_id ORDER BY t.created_at DESC"
+        )
+    ]
+
+
+def untrain_tag(conn: sqlite3.Connection, tag_id: int) -> int:
+    """Undo teaching: forget the taught tag and remove the AI copies it made. Tags you accepted,
+    added yourself or removed (rejected) stay as they are. Returns the photos untagged."""
+    if conn.execute("DELETE FROM taught_tags WHERE tag_id = ?", (tag_id,)).rowcount == 0:
+        raise NotFound(f"no taught tag {tag_id}")
+    ids = [
+        r[0]
+        for r in conn.execute(
+            "DELETE FROM asset_tags WHERE tag_id = ? AND origin = 'ai' AND rejected = 0 AND confirmed_at IS NULL "
+            "RETURNING asset_id",
+            (tag_id,),
+        )
+    ]
+    from .handlers import refresh_fts
+
+    refresh_fts(conn, ids)
+    audit(conn, "untrain_tag", "tag", tag_id, None, {"untagged": len(ids)})
+    return len(ids)

@@ -60,6 +60,26 @@ describe("Automatic tags panel", () => {
   });
 });
 
+describe("Tags you taught", () => {
+  it("lists taught tags and undoes one", async () => {
+    let taught = [{ tag_id: 9, name: "dogs", prompt: "dog on a beach", threshold: 0.27, photos: 14, created_at: "2026-11-26T10:00:00" }];
+    const { calls } = renderWith(<AiPanel />, {
+      "GET /v1/ai": () => status({ installed: true, enabled: true }),
+      "GET /v1/ai/taught": () => taught,
+      "DELETE /v1/ai/taught/9": () => {
+        taught = [];
+        return { photos_untagged: 12 };
+      },
+    });
+    const list = await screen.findByRole("list", { name: "Tags you taught" });
+    expect(list.textContent).toMatch(/dogs\s*from “dog on a beach” · 14 photos/);
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByText("Removed from 12 photos. Tags you had accepted stay.")).toBeTruthy();
+    expect(calls.some((r) => r.method === "DELETE" && r.url.endsWith("/v1/ai/taught/9"))).toBe(true);
+    await waitFor(() => expect(screen.queryByRole("list", { name: "Tags you taught" })).toBeNull());
+  });
+});
+
 function FilterProbe() {
   return <output aria-label="filters">{JSON.stringify(useFilters())}</output>;
 }

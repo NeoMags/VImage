@@ -38,6 +38,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai/taught": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Taught */
+        get: operations["taught_v1_ai_taught_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/taught/{tag_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Untrain
+         * @description Undo teaching: AI copies of the tag are removed; ones you accepted or added stay.
+         */
+        delete: operations["untrain_v1_ai_taught__tag_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/teach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Teach
+         * @description Tag every photo that scores at least `threshold` for `prompt` with `name`, now and
+         *     as new photos are analysed. The tags are AI tags: review or remove them like any other.
+         */
+        post: operations["teach_v1_ai_teach_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ai:install": {
         parameters: {
             query?: never;
@@ -1904,6 +1962,44 @@ export interface components {
             /** Photos Moved */
             photos_moved: number;
         };
+        /** TaughtTag */
+        TaughtTag: {
+            /** Created At */
+            created_at: string;
+            /** Name */
+            name: string;
+            /** Photos */
+            photos: number;
+            /** Prompt */
+            prompt: string;
+            /** Tag Id */
+            tag_id: number;
+            /** Threshold */
+            threshold: number;
+        };
+        /** TeachBody */
+        TeachBody: {
+            /** Name */
+            name: string;
+            /** Prompt */
+            prompt: string;
+            /** Threshold */
+            threshold: number;
+        };
+        /** TeachResult */
+        TeachResult: {
+            /** Name */
+            name: string;
+            /** Photos Tagged */
+            photos_tagged: number;
+            /** Tag Id */
+            tag_id: number;
+        };
+        /** Untaught */
+        Untaught: {
+            /** Photos Untagged */
+            photos_untagged: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -1989,6 +2085,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FacetTag"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    taught_v1_ai_taught_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaughtTag"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    untrain_v1_ai_taught__tag_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                tag_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Untaught"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    teach_v1_ai_teach_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeachBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeachResult"];
                 };
             };
             /** @description Validation Error */

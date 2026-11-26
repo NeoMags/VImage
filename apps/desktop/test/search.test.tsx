@@ -103,3 +103,53 @@ describe("More like this", () => {
     await waitFor(() => expect(screen.getByText("This photo has not been analysed yet")).toBeTruthy());
   });
 });
+
+describe("Teach a tag", () => {
+  it("tags the best N matches using the Nth match as the bar", async () => {
+    const items = [hit(3, 0.31), hit(1, 0.27), hit(7, 0.22)];
+    const { calls } = renderWith(<SearchScreen />, {
+      "GET /v1/ai": () => aiStatus(),
+      "POST /v1/search": () => ({ items, photos_analysed: 40 }),
+      "POST /v1/ai/teach": () => ({ tag_id: 9, name: "dogs", photos_tagged: 2 }),
+    }, "/search?q=dog");
+    fireEvent.click(await screen.findByRole("button", { name: "Teach a tag from this search…" }));
+    const form = screen.getByRole("form", { name: "Teach a tag" });
+    expect((within(form).getByLabelText("Tag name") as HTMLInputElement).value).toBe("dog");
+    fireEvent.change(within(form).getByLabelText("Tag name"), { target: { value: " dogs " } });
+    fireEvent.change(within(form).getByLabelText("How many of the best matches"), { target: { value: "2" } });
+    const grid = screen.getByRole("list", { name: "Search results" });
+    expect(within(grid).getAllByRole("button").map((b) => b.classList.contains("dimmed"))).toEqual([false, false, true]);
+    fireEvent.click(within(form).getByRole("button", { name: "Teach" }));
+    expect(await within(form).findByText(/Tagged 2 photos “dogs”/)).toBeTruthy();
+    const body = await calls.find((r) => r.url.endsWith("/v1/ai/teach"))!.json();
+    expect(body).toEqual({ name: "dogs", prompt: "dog", threshold: 0.27 });
+  });
+
+  it("Cancel closes the form and un-dims the results", async () => {
+    renderWith(<SearchScreen />, {
+      "GET /v1/ai": () => aiStatus(),
+      "POST /v1/search": () => ({ items: [hit(3, 0.31), hit(1, 0.27)], photos_analysed: 40 }),
+    }, "/search?q=dog");
+    fireEvent.click(await screen.findByRole("button", { name: "Teach a tag from this search…" }));
+    fireEvent.change(screen.getByLabelText("How many of the best matches"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("form", { name: "Teach a tag" })).toBeNull();
+    const grid = screen.getByRole("list", { name: "Search results" });
+    expect(within(grid).getAllByRole("button").some((b) => b.classList.contains("dimmed"))).toBe(false);
+  });
+
+  it("is not offered on More like this", async () => {
+    renderWith(
+      <Routes>
+        <Route path="/similar/:id" element={<SimilarScreen />} />
+      </Routes>,
+      {
+        "GET /v1/ai": () => aiStatus(),
+        "GET /v1/assets/5/similar": () => ({ items: [hit(3, 0.9)], photos_analysed: 40 }),
+      },
+      "/similar/5",
+    );
+    await screen.findByRole("list", { name: "Search results" });
+    expect(screen.queryByRole("button", { name: "Teach a tag from this search…" })).toBeNull();
+  });
+});

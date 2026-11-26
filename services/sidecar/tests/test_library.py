@@ -544,6 +544,29 @@ def test_100k_list_and_detail_timings(api):
     assert len(sim["items"]) == 60 and sim["photos_analysed"] == n
     assert sim_ms < (600 if os.name == "nt" else 300)  # T4 plan budget: 300 ms at 100k
 
+    # T5: teaching a tag. As in the UI: keep the best 120 of a search, so the bar is the 120th score.
+    probe = rng.standard_normal(512).astype(np.float32)
+    probe /= np.linalg.norm(probe)
+    knn = "SELECT distance FROM vec_clip_b32 WHERE embedding MATCH ? AND k = 120"
+    bar = 1 - max(d for (d,) in conn.execute(knn, (probe.tobytes(),)))
+
+    def teach(name: str, threshold: float) -> tuple[float, int]:
+        t0 = time.perf_counter()
+        with lib.tx(conn):
+            out = lib.teach_tag(conn, name, "probe", probe.tobytes(), threshold)
+        return (time.perf_counter() - t0) * 1000, out["photos_tagged"]
+
+    teach_ms, teach_n = teach("taught", bar)
+    many_ms, many_n = teach("taught wide", 0.1)  # a loose bar: ~1% of random vectors pass
+    print(
+        f"teach a tag over {n} vectors: best 120 {teach_ms:.0f} ms ({teach_n} tagged), loose {many_ms:.0f} ms ({many_n} tagged)"
+    )
+    assert teach_n >= 120 and many_n > 1000
+    assert teach_ms < (1500 if os.name == "nt" else 750)  # T5 budget 750 ms; measured ~0.1 s on Linux
+    # Loose bar: needs the k = 4096 pass. Linux ~0.4 s; the Windows runner took 3.3 s for it (large k
+    # is slow there), so it gets a looser regression guard until B21 measures on Neo's PC.
+    assert many_ms < (4000 if os.name == "nt" else 750)
+
 
 def test_cursor_is_opaque_but_tamper_safe(api):
     conn, client = api
